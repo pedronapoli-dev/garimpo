@@ -8,7 +8,9 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20.1",
     "fastapi[standard]>=0.163.2",
+    "sqlalchemy>=2.1.9",
 ]
 
 [dependency-groups]
