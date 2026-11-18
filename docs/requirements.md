@@ -49,14 +49,54 @@ Music curation made by people: music diggers recommend lesser-known artists, alb
 
 ## Data model
 
+Approved on 2026-11-18.
+
+### Relationships
+
+```
+users 1 ───< N recommendations N >───< N tags   (via recommendation_tags)
+users 1 ───< N votes   >─── N recommendations
+users 1 ───< N saves   >─── N recommendations
+users 1 ───< N reports >─── N recommendations
+users 1 ───< N invites (created_by); users 0..1 ─── 1 invites (used_by)
+```
+
+### Tables
+
 - `users` — id, email, display name, password hash, created at
+  - `UNIQUE(email)`; email stored in lowercase.
 - `invites` — code, created by, used by, used at
-- `recommendations` — id, author, type, artist, title, text, hidden, created at
+  - `code` is the primary key; `used_by` is nullable and `UNIQUE` (rule 1).
+- `recommendations` — id, author, type, artist, title, artist key, title key, text, hidden, created at, updated at
+  - `author_id` references `users` with `ON DELETE RESTRICT`.
+  - `type` is one of `artist`, `album`, `track`, enforced by a `CHECK`.
+  - `title` is null for `artist`; `title_key` is `''` in that case, never null, so the unique index below still applies.
+  - `artist_key` and `title_key` are normalized: lowercase, trimmed, repeated spaces collapsed.
+  - `UNIQUE(type, artist_key, title_key)` enforces rule 7 at the database level; the service checks it first to return the existing id.
+  - `CHECK` on the text length (80 to 1000 characters).
+  - `hidden` defaults to false (rule 6, slice 6).
+  - Index on `(created_at, id)` for the feed cursor.
 - `tags` — id, name
+  - `UNIQUE(name)`; stored trimmed and in lowercase.
 - `recommendation_tags` — recommendation, tag
+  - Composite primary key; `ON DELETE CASCADE` from the recommendation, `ON DELETE RESTRICT` from the tag.
+  - "1 to 5 genres" (rule 2) is enforced in the schema and service; SQL cannot express it.
 - `votes` — user, recommendation (composite key)
 - `saves` — user, recommendation (composite key)
 - `reports` — user, recommendation, reason, created at
+  - `UNIQUE(user_id, recommendation_id)`, so 3 reports come from 3 different users (rule 6).
+
+### Conventions
+
+- SQLite foreign keys are turned on per connection (`PRAGMA foreign_keys=ON`).
+- `Base.metadata` uses a constraint naming convention, which Alembic needs to alter SQLite tables.
+- Timestamps are UTC and set by the database (`server_default`).
+- Rules that SQL can express are also database constraints, in addition to the service checks.
+
+### Author before auth (slices 2 and 3)
+
+- A separate seed migration creates the dev curator (display name "Pedro", email `curator@garimpo.local`, password hash `"!"`, which no password matches).
+- Routes get the author from a `get_current_user` dependency that returns the dev curator. Slice 4 replaces only that dependency's body with JWT validation.
 
 ## Endpoints
 
