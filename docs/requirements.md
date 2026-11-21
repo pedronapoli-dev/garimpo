@@ -206,8 +206,8 @@ garimpo/
 ## Delivery slices
 
 1. Minimal API: uv project, health endpoint, one test. **Done.**
-2. Models, migrations and recommendation CRUD, still without auth.
-3. App: feed, detail and create form.
+2. Models, migrations and recommendation CRUD, still without auth. **Done.**
+3. App: feed, detail and create form. **Done.**
 4. Auth and invites, in the API and the app.
 5. Votes, saves and profile.
 6. Reports, README, license and community guidelines.
