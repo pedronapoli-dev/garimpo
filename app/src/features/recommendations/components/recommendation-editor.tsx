@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ApiError, errorMessage } from '@/api/errors';
@@ -22,6 +22,7 @@ type RecommendationEditorProps = {
   onSubmit: (form: RecommendationForm) => void;
   /** Called on every edit, so the screen can clear a previous API error. */
   onChange: () => void;
+  footer?: ReactNode;
 };
 
 /** The form shared by the create and edit screens. */
@@ -32,6 +33,7 @@ export function RecommendationEditor({
   error,
   onSubmit,
   onChange,
+  footer,
 }: RecommendationEditorProps) {
   const router = useRouter();
   const theme = useTheme();
@@ -116,6 +118,7 @@ export function RecommendationEditor({
           ) : null}
 
           <Button title={submitTitle} onPress={submit} loading={pending} />
+          {footer}
         </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>

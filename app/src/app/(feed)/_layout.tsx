@@ -9,6 +9,10 @@ export default function FeedLayout() {
       <Stack.Screen name="recommendations/[id]/index" options={{ title: '' }} />
       <Stack.Screen name="users/[id]" options={{ title: '' }} />
       <Stack.Screen
+        name="recommendations/[id]/report"
+        options={{ title: 'Report', presentation: 'modal' }}
+      />
+      <Stack.Screen
         name="recommendations/[id]/edit"
         options={{ title: 'Edit', presentation: 'modal' }}
       />

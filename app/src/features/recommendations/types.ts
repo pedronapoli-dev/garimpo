@@ -9,3 +9,4 @@ export type Tag = components['schemas']['TagOut'];
 export type FeedSort = components['schemas']['FeedSort'];
 export type VoteOut = components['schemas']['VoteOut'];
 export type UserProfile = components['schemas']['UserProfileOut'];
+export type ReportIn = components['schemas']['ReportIn'];

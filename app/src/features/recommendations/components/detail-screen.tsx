@@ -37,6 +37,13 @@ export function DetailScreen({ id }: { id: number }) {
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ title: TYPE_LABELS[recommendation.type] }} />
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+        {recommendation.hidden ? (
+          <ThemedView type="backgroundElement" style={styles.notice}>
+            <ThemedText type="small">
+              Hidden from the feed after 3 reports, until a maintainer reviews it.
+            </ThemedText>
+          </ThemedView>
+        ) : null}
         <ThemedText type="title" style={styles.headline}>
           {headline(recommendation)}
         </ThemedText>
@@ -57,9 +64,24 @@ export function DetailScreen({ id }: { id: number }) {
           {formatDate(recommendation.created_at)}
         </ThemedText>
         <SaveButton recommendation={recommendation} />
-        {recommendation.author.id === userId ? <AuthorActions id={recommendation.id} /> : null}
+        {recommendation.author.id === userId ? (
+          <AuthorActions id={recommendation.id} />
+        ) : (
+          <ReportLink id={recommendation.id} />
+        )}
       </ScrollView>
     </ThemedView>
+  );
+}
+
+function ReportLink({ id }: { id: number }) {
+  const router = useRouter();
+  return (
+    <Button
+      title="Report"
+      variant="secondary"
+      onPress={() => router.push(`/recommendations/${id}/report`)}
+    />
   );
 }
 
@@ -100,6 +122,7 @@ function AuthorActions({ id }: { id: number }) {
 const styles = StyleSheet.create({
   actions: { gap: Spacing.two, marginTop: Spacing.three },
   row: { flexDirection: 'row' },
+  notice: { padding: Spacing.three, borderRadius: Spacing.two },
   container: { flex: 1 },
   loading: { marginTop: Spacing.five },
   content: { padding: Spacing.four, gap: Spacing.three },

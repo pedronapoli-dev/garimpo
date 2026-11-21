@@ -48,3 +48,12 @@ it('hides edit and delete when signed out', async () => {
 
   expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
 });
+
+it('says when a recommendation is hidden after reports', async () => {
+  GET.mockResolvedValue(ok(makeRecommendation({ id: 4, hidden: true })));
+  signInAs({ id: 2, email: 'other@example.com', display_name: 'Other' });
+  await renderScreen();
+
+  expect(screen.getByText(/Hidden from the feed after 3 reports/)).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Report' })).toBeOnTheScreen();
+});

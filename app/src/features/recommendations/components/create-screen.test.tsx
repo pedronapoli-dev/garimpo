@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { client } from '@/api/client';
@@ -9,7 +10,10 @@ import { CreateScreen } from './create-screen';
 
 const mockPush = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock('expo-router', () => ({
+  Link: ({ children }: { children: ReactNode }) => children,
+  useRouter: () => ({ push: mockPush }),
+}));
 jest.mock('@/api/client', () => ({ client: { POST: jest.fn() } }));
 
 const POST = client.POST as jest.Mock;
