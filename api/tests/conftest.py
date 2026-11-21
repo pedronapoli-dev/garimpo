@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db import create_db_engine, get_session
-from app.models import Base, Recommendation, RecommendationType, User
+from app.models import Base, Recommendation, RecommendationType, Save, User, Vote
 from app.services import auth
 from app.services.users import DEV_CURATOR_EMAIL
 from main import app
@@ -84,3 +84,17 @@ def make_recommendation(
     session.add(recommendation)
     session.flush()
     return recommendation
+
+
+def make_vote(session: Session, user: User, recommendation: Recommendation) -> Vote:
+    vote = Vote(user_id=user.id, recommendation_id=recommendation.id)
+    session.add(vote)
+    session.flush()
+    return vote
+
+
+def make_save(session: Session, user: User, recommendation: Recommendation) -> Save:
+    save = Save(user_id=user.id, recommendation_id=recommendation.id)
+    session.add(save)
+    session.flush()
+    return save

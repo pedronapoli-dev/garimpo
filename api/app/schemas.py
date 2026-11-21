@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated, Any, Self
 
 from pydantic import (
@@ -66,6 +67,11 @@ def _empty_to_none(title: str | None) -> str | None:
     return title or None
 
 
+class FeedSort(StrEnum):
+    NEWEST = "newest"
+    TOP = "top"
+
+
 class RecommendationCreate(BaseModel):
     type: RecommendationType
     artist: Artist
@@ -119,6 +125,9 @@ class RecommendationOut(BaseModel):
     author: AuthorOut
     created_at: UtcDatetime
     updated_at: UtcDatetime
+    vote_count: int
+    voted_by_me: bool
+    saved_by_me: bool
 
     @field_validator("genres", mode="before")
     @classmethod
@@ -130,6 +139,26 @@ class RecommendationOut(BaseModel):
 class RecommendationPage(BaseModel):
     items: list[RecommendationOut]
     next_cursor: str | None
+
+
+class VoteOut(BaseModel):
+    """The new vote state, so the app can reconcile its optimistic update."""
+
+    vote_count: int
+    voted_by_me: bool
+
+
+class SaveOut(BaseModel):
+    saved_by_me: bool
+
+
+class UserProfileOut(BaseModel):
+    """A curator's public profile (FR7). Their recommendations come from the feed."""
+
+    id: int
+    display_name: str
+    created_at: UtcDatetime
+    recommendation_count: int
 
 
 class TagOut(BaseModel):

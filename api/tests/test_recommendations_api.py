@@ -1,13 +1,20 @@
 import time
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import Tag, User
 from app.services.exceptions import DomainError
 from main import STATUS_BY_ERROR, app
-from tests.conftest import VALID_TEXT, auth_headers, make_recommendation, make_user
+from tests.conftest import (
+    VALID_TEXT,
+    auth_headers,
+    make_recommendation,
+    make_user,
+    make_vote,
+)
 
 
 def payload(**overrides: Any) -> dict[str, Any]:
@@ -30,7 +37,7 @@ def test_create_returns_201_with_recommendation(client: TestClient) -> None:
     assert response.status_code == 201
     body = response.json()
     assert body["id"] > 0
-    assert body["genres"] == ["mpb", "jazz"]
+    assert body["genres"] == ["jazz", "mpb"]
     assert body["author"] == {"id": 1, "display_name": "Pedro"}
     assert set(body) == {
         "id",
@@ -42,7 +49,15 @@ def test_create_returns_201_with_recommendation(client: TestClient) -> None:
         "author",
         "created_at",
         "updated_at",
+        "vote_count",
+        "voted_by_me",
+        "saved_by_me",
     }
+    assert (body["vote_count"], body["voted_by_me"], body["saved_by_me"]) == (
+        0,
+        False,
+        False,
+    )
     assert body["created_at"].endswith("Z") or body["created_at"].endswith("+00:00")
 
 
@@ -93,7 +108,13 @@ def test_openapi_operation_ids_are_camel_case() -> None:
         "getRecommendation",
         "updateRecommendation",
         "deleteRecommendation",
+        "voteRecommendation",
+        "unvoteRecommendation",
+        "saveRecommendation",
+        "unsaveRecommendation",
         "listTags",
+        "getUser",
+        "listMySaves",
     }
 
 
@@ -168,22 +189,30 @@ def test_list_limit_out_of_range_returns_422(client: TestClient) -> None:
     assert response.json()["code"] == "validation_error"
 
 
+@pytest.mark.parametrize("sort", ["newest", "top"])
 def test_list_with_many_rows_responds_under_300_ms(
-    client: TestClient, session: Session, curator: User
+    client: TestClient, session: Session, curator: User, sort: str
 ) -> None:
     jazz = Tag(name="jazz")
+    voters = [
+        make_user(session, email=f"voter{index}@example.com") for index in range(5)
+    ]
     for index in range(2000):
-        make_recommendation(
+        recommendation = make_recommendation(
             session,
             curator,
             title=f"Album {index}",
             title_key=f"album {index}",
             tags=[jazz],
         )
+        for voter in voters[: index % 6]:
+            make_vote(session, voter, recommendation)
     session.commit()
 
     started = time.perf_counter()
-    response = client.get("/recommendations", params={"genre": "jazz", "limit": 50})
+    response = client.get(
+        "/recommendations", params={"genre": "jazz", "limit": 50, "sort": sort}
+    )
     elapsed = time.perf_counter() - started
 
     assert response.status_code == 200
