@@ -37,15 +37,83 @@ Music curation made by people: music diggers recommend lesser-known artists, alb
 ### Later
 - FR10. Artist and album autocomplete via MusicBrainz, with manual entry as a fallback.
 - FR11. Curator stats (most recommended genres, votes received).
+- FR12. Curator assist (slice 7): while writing a recommendation, Claude reviews whether the text explains why to listen and suggests 1 to 5 genres from the existing tags. Optional: without an API key the app behaves exactly as in the MVP. It reviews the curator's text; it never recommends music.
 
 ## Non-functional requirements
 
 - The feed responds in under 300 ms locally, with cursor-based pagination.
 - Voting uses optimistic updates in the app, rolled back on error.
 - Passwords hashed with Argon2; JWT stored in SecureStore.
-- Business rules live in the service layer with 100% test coverage.
+- Business rules live in the service layer with 100% test coverage, enforced with `pytest-cov`.
 - No MVP requirement depends on an external service.
 - The API contract is OpenAPI; the app's TypeScript types are generated from it.
+
+## Architecture
+
+Approved on 2026-11-21.
+
+### API: layered, with a service layer
+
+```
+main.py      creates the app, registers routers and domain exception handlers
+routers/     HTTP only: parse input, call one service function, return a schema
+services/    business rules as module-level functions that receive a Session
+models.py    SQLAlchemy tables; db.py owns the engine and sessions
+schemas.py   Pydantic input and output; the only types that cross HTTP
+llm/         slice 7: a Protocol with a Claude client and a deterministic fake
+```
+
+- Dependencies flow one way: routers → services → models.
+- There is no repository layer. `Session` already is the unit of work, and tests use a real in-memory SQLite database, so a repository would be a second implementation of nothing. A query moves to its own module only when two services share it.
+- Services raise domain exceptions (`DuplicateRecommendation`, `RecommendationNotFound`, ...). `main.py` maps them to status codes with `app.add_exception_handler`; routers do not catch them.
+- `llm/` is the only `Protocol` in the API, because it has two real implementations.
+
+### Contract between API and app
+
+- Every route declares its response model, so the generated TypeScript types are never `unknown`.
+- Operation ids are stable and readable (`generate_unique_id_function`), for example `createRecommendation`.
+- Every error response uses one schema, `ErrorOut { code, message, existing_id? }`, declared in each route's `responses=`. Rule 7 returns 409 with `code: "duplicate_recommendation"` and `existing_id`.
+- The feed returns `{ items, next_cursor }`; `next_cursor` is null on the last page.
+- Vote and save use idempotent `PUT` and `DELETE` and return the new state (`vote_count`, `voted_by_me` or `saved_by_me`), so optimistic updates can be retried and reconciled.
+- `RecommendationOut` includes `voted_by_me` and `saved_by_me` from slice 5 on.
+- The app generates `src/api/schema.d.ts` from `/openapi.json` with `openapi-typescript` and calls the API through `openapi-fetch`. The generated file is committed; CI regenerates it and fails on any diff.
+
+### App
+
+```
+app/src/
+  app/                    Expo Router routes
+  api/schema.d.ts         generated, never edited by hand
+  api/client.ts           openapi-fetch instance and auth header
+  features/<feature>/
+    queries.ts            TanStack Query hooks
+    cache.ts              pure cache updates (applyVote, rollbackVote, mergePages)
+    components/
+  stores/session.ts       Zustand: token and current user only
+```
+
+- Server data lives only in the TanStack Query cache. Zustand never holds recommendations.
+- Business rules are enforced by the API. The app validates only for UX (text length counter, 1 to 5 genres) and always handles the API's 409 and 422 responses.
+- Optimistic updates call the pure functions in `cache.ts`; they are not written inline in `onMutate`.
+
+## Testing strategy
+
+TDD applies where the code is pure behaviour. Declarative code gets tests written alongside it.
+
+| Layer | Approach | Tool |
+|---|---|---|
+| Services (business rules) | Strict TDD, 100% coverage | pytest, in-memory SQLite |
+| Pydantic schemas | Strict TDD | pytest, no HTTP |
+| Routers | Test first, thin: happy path and each error status per route | `TestClient` |
+| Models and constraints | Tests alongside the model | pytest, in-memory SQLite |
+| Migrations | `alembic upgrade head` on an empty database, plus `alembic check` for drift | pytest |
+| LLM feature (slice 7) | Evals: golden dataset, deterministic checks, LLM-as-judge rubric, run in CI as a gate | pytest + fake client in unit tests |
+| App `cache.ts`, cursor merge, form validation | Strict TDD | Jest (`jest-expo`) |
+| App query hooks | Test after: optimistic update and rollback | `renderHook` + `QueryClientProvider`, `jest.mock` on `client.ts` |
+| App screens | A few behaviour tests, no snapshots | React Native Testing Library |
+| End to end | Out of scope | — |
+
+API test files stay flat in `api/tests/`: `test_models.py`, `test_migrations.py`, `test_schemas.py`, `test_<resource>_service.py`, `test_<resource>_api.py`. Test data comes from plain helper functions in `conftest.py` (`make_user`, `make_recommendation`), not from a factory library.
 
 ## Data model
 
@@ -143,5 +211,6 @@ garimpo/
 4. Auth and invites, in the API and the app.
 5. Votes, saves and profile.
 6. Reports, README, license and community guidelines.
+7. Curator assist (FR12), after the MVP. Applies the AI roadmap: Claude Messages API with tool use (`list_tags`), structured output validated by Pydantic, streaming to the app over SSE, retry and offline fallback, logged tokens, cost and latency (never the user's text), evals as a CI gate and prompt injection cases. Deployment with Docker and Amazon Bedrock follows this slice.
 
 Suggested effort split: 60% API, 40% app.

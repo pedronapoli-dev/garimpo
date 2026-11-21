@@ -46,8 +46,8 @@ Each step ends with tests, lint and format passing, and gets one commit.
 
    Tests run against the schemas, without HTTP.
    - Concepts: `Field` constraints, `model_validator`, and how Pydantic validation compares with `Codable` plus a throwing `init(from:)`.
-4. **Create, plus rule 7.** Write `app/repositories/recommendations.py` and `app/services/recommendations.py`. The service raises a `DuplicateRecommendation` domain exception that carries the existing id. Then write `app/routers/recommendations.py` with `POST /recommendations`, which translates the exception into a **409** response containing the existing id. Rule tests run at the service level; the router is tested with `TestClient` for the status code and the response shape.
-   - Concepts: custom exception classes compared with Swift typed `throws`, translating them into `HTTPException`, and `include_router`.
+4. **Create, plus rule 7.** Add `pytest-cov` and write `app/services/recommendations.py` test first; there is no repository layer (see "Architecture" in `docs/requirements.md`). The service raises a `DuplicateRecommendation` domain exception that carries the existing id. Then write `app/routers/recommendations.py` with `POST /recommendations`, and register an exception handler in `main.py` that turns the exception into a **409** `ErrorOut` response with `code` and `existing_id`. Rule tests run at the service level; the router is tested with `TestClient` for the status code and the response shape.
+   - Concepts: custom exception classes compared with Swift typed `throws`, `app.add_exception_handler`, `responses=` in the route decorator, `include_router` and `pytest --cov`.
 5. **Read endpoints.**
    - `GET /recommendations/{id}` returns 404 when the recommendation is missing.
    - `GET /recommendations` uses cursor pagination, filters with `?genre=` and sorts newest first.
