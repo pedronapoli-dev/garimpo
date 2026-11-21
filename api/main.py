@@ -4,12 +4,19 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
-from app.routers import recommendations
+from app.routers import recommendations, tags
 from app.schemas import ErrorOut
-from app.services.exceptions import DomainError, DuplicateRecommendation
+from app.services.exceptions import (
+    DomainError,
+    DuplicateRecommendation,
+    InvalidCursor,
+    RecommendationNotFound,
+)
 
 STATUS_BY_ERROR: dict[type[DomainError], int] = {
+    RecommendationNotFound: status.HTTP_404_NOT_FOUND,
     DuplicateRecommendation: status.HTTP_409_CONFLICT,
+    InvalidCursor: 422,
 }
 
 
@@ -45,6 +52,7 @@ app = FastAPI(title="Garimpo", generate_unique_id_function=camel_case_operation_
 app.add_exception_handler(DomainError, handle_domain_error)
 app.add_exception_handler(RequestValidationError, handle_validation_error)
 app.include_router(recommendations.router)
+app.include_router(tags.router)
 
 
 class Health(BaseModel):

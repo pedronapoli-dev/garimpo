@@ -1,10 +1,13 @@
+import time
 from typing import Any
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
+from app.models import Tag, User
 from app.services.exceptions import DomainError
 from main import STATUS_BY_ERROR, app
-from tests.conftest import VALID_TEXT
+from tests.conftest import VALID_TEXT, make_recommendation
 
 
 def payload(**overrides: Any) -> dict[str, Any]:
@@ -80,3 +83,100 @@ def test_openapi_uses_camel_case_ids_and_error_out() -> None:
     for status_code in ("409", "422"):
         schema = operation["responses"][status_code]["content"]["application/json"]
         assert schema["schema"] == {"$ref": "#/components/schemas/ErrorOut"}
+
+
+# GET /recommendations/{id}
+
+
+def test_get_returns_200_with_recommendation(client: TestClient) -> None:
+    created = client.post("/recommendations", json=payload()).json()
+
+    response = client.get(f"/recommendations/{created['id']}")
+
+    assert response.status_code == 200
+    assert response.json() == created
+
+
+def test_get_missing_returns_404_error_out(client: TestClient) -> None:
+    response = client.get("/recommendations/999")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "code": "recommendation_not_found",
+        "message": "Recommendation 999 does not exist.",
+    }
+
+
+# GET /recommendations
+
+
+def test_list_returns_page_with_next_cursor(client: TestClient) -> None:
+    for index in range(3):
+        client.post("/recommendations", json=payload(title=f"Album {index}"))
+
+    first = client.get("/recommendations", params={"limit": 2}).json()
+    second = client.get(
+        "/recommendations", params={"limit": 2, "cursor": first["next_cursor"]}
+    ).json()
+
+    assert [item["title"] for item in first["items"]] == ["Album 2", "Album 1"]
+    assert [item["title"] for item in second["items"]] == ["Album 0"]
+    assert second["next_cursor"] is None
+
+
+def test_list_filters_by_genre(client: TestClient) -> None:
+    client.post("/recommendations", json=payload(title="A", genres=["jazz"]))
+    client.post("/recommendations", json=payload(title="B", genres=["soul"]))
+
+    body = client.get("/recommendations", params={"genre": "Soul"}).json()
+
+    assert [item["title"] for item in body["items"]] == ["B"]
+
+
+def test_list_invalid_cursor_returns_422_error_out(client: TestClient) -> None:
+    response = client.get("/recommendations", params={"cursor": "nope"})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "invalid_cursor"
+
+
+def test_list_limit_out_of_range_returns_422(client: TestClient) -> None:
+    response = client.get("/recommendations", params={"limit": 101})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+
+
+def test_list_with_many_rows_responds_under_300_ms(
+    client: TestClient, session: Session, curator: User
+) -> None:
+    jazz = Tag(name="jazz")
+    for index in range(2000):
+        make_recommendation(
+            session,
+            curator,
+            title=f"Album {index}",
+            title_key=f"album {index}",
+            tags=[jazz],
+        )
+    session.commit()
+
+    started = time.perf_counter()
+    response = client.get("/recommendations", params={"genre": "jazz", "limit": 50})
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 50
+    assert elapsed < 0.3
+
+
+# GET /tags
+
+
+def test_list_tags_returns_200_with_tags(client: TestClient) -> None:
+    client.post("/recommendations", json=payload(genres=["soul", "jazz"]))
+
+    response = client.get("/tags")
+
+    assert response.status_code == 200
+    assert [tag["name"] for tag in response.json()] == ["jazz", "soul"]

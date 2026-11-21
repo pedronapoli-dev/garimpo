@@ -19,3 +19,17 @@ class DuplicateRecommendation(DomainError):
             "This artist and title were already recommended.",
             existing_id=existing_id,
         )
+
+
+class RecommendationNotFound(DomainError):
+    code = "recommendation_not_found"
+
+    def __init__(self, recommendation_id: int) -> None:
+        super().__init__(f"Recommendation {recommendation_id} does not exist.")
+
+
+class InvalidCursor(DomainError):
+    code = "invalid_cursor"
+
+    def __init__(self) -> None:
+        super().__init__("The cursor is not valid. Start again from the first page.")

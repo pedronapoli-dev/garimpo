@@ -4,6 +4,7 @@ from enum import StrEnum
 from sqlalchemy import (
     CheckConstraint,
     Column,
+    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     false,
     func,
 )
+from sqlalchemy.dialects import sqlite
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # Predictable constraint names. Alembic needs them to alter tables in SQLite.
@@ -25,6 +27,20 @@ NAMING_CONVENTION = {
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s",
 }
+
+
+# SQLite has no datetime type: it stores and compares timestamps as text.
+# CURRENT_TIMESTAMP writes "2026-11-21 19:18:35", while SQLAlchemy would bind
+# Python datetimes as "2026-11-21 19:18:35.000000". Comparing the two as text
+# breaks the feed cursor, so both sides use the database's format.
+Timestamp = DateTime().with_variant(
+    sqlite.DATETIME(
+        storage_format=(
+            "%(year)04d-%(month)02d-%(day)02d %(hour)02d:%(minute)02d:%(second)02d"
+        )
+    ),
+    "sqlite",
+)
 
 
 class Base(DeclarativeBase):
@@ -55,7 +71,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True)
     display_name: Mapped[str] = mapped_column(String(50))
     password_hash: Mapped[str] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
     recommendations: Mapped[list["Recommendation"]] = relationship(
         back_populates="author"
     )
@@ -86,9 +102,9 @@ class Recommendation(Base):
     title_key: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     text: Mapped[str] = mapped_column(Text)
     hidden: Mapped[bool] = mapped_column(default=False, server_default=false())
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
+        Timestamp, server_default=func.now(), onupdate=func.now()
     )
     author: Mapped["User"] = relationship(back_populates="recommendations")
     tags: Mapped[list["Tag"]] = relationship(secondary=recommendation_tags)
