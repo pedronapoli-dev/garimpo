@@ -17,28 +17,22 @@ A step is done only when tests, lint and format all pass.
 
 ## Layout
 
-Today:
-
 ```
 api/
-  main.py              creates the FastAPI app and registers routers
-  tests/
-```
-
-From slice 2 on:
-
-```
-api/
-  main.py
+  main.py              creates the app, registers routers and error handlers
   app/
     db.py              SQLAlchemy engine and session
     models.py          tables (SQLAlchemy)
     schemas.py         API input and output (Pydantic)
+    dependencies.py    SessionDep and CurrentUser for routes
+    normalization.py   normalize_key for rule 7 keys and tag names
     routers/           one file per resource; HTTP only, no business rules
     services/          business rules; unaware of HTTP
   migrations/          Alembic
   tests/
 ```
+
+- Migrations: `uv run alembic upgrade head` creates `garimpo.db`; after changing `models.py`, `uv run alembic revision --autogenerate -m "..."` and review the file.
 
 - Dependencies flow one way: routers → services → models.
 - No repository layer: services are module-level functions that receive a `Session`. Move a query to its own module only when two services share it.
