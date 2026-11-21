@@ -76,6 +76,24 @@ def test_every_domain_error_has_a_status_code() -> None:
     assert set(DomainError.__subclasses__()) == set(STATUS_BY_ERROR)
 
 
+def test_openapi_operation_ids_are_camel_case() -> None:
+    operation_ids = {
+        operation["operationId"]
+        for path in app.openapi()["paths"].values()
+        for operation in path.values()
+    }
+
+    assert operation_ids == {
+        "health",
+        "createRecommendation",
+        "listRecommendations",
+        "getRecommendation",
+        "updateRecommendation",
+        "deleteRecommendation",
+        "listTags",
+    }
+
+
 def test_openapi_uses_camel_case_ids_and_error_out() -> None:
     operation = app.openapi()["paths"]["/recommendations"]["post"]
 
@@ -168,6 +186,76 @@ def test_list_with_many_rows_responds_under_300_ms(
     assert response.status_code == 200
     assert len(response.json()["items"]) == 50
     assert elapsed < 0.3
+
+
+# PATCH /recommendations/{id}
+
+
+def test_update_returns_200_with_changes(client: TestClient) -> None:
+    created = client.post("/recommendations", json=payload()).json()
+
+    response = client.patch(
+        f"/recommendations/{created['id']}", json={"genres": ["Soul"]}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["genres"] == ["soul"]
+    assert response.json()["text"] == created["text"]
+
+
+def test_update_duplicate_returns_409_with_existing_id(client: TestClient) -> None:
+    first = client.post("/recommendations", json=payload()).json()
+    second = client.post("/recommendations", json=payload(title="Saudade")).json()
+
+    response = client.patch(
+        f"/recommendations/{second['id']}", json={"title": first["title"]}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["existing_id"] == first["id"]
+
+
+def test_update_breaking_title_rule_returns_422_error_out(client: TestClient) -> None:
+    created = client.post("/recommendations", json=payload()).json()
+
+    response = client.patch(
+        f"/recommendations/{created['id']}", json={"type": "artist"}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "invalid_recommendation"
+
+
+def test_update_null_artist_returns_422(client: TestClient) -> None:
+    created = client.post("/recommendations", json=payload()).json()
+
+    response = client.patch(f"/recommendations/{created['id']}", json={"artist": None})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+
+
+def test_update_missing_returns_404(client: TestClient) -> None:
+    response = client.patch("/recommendations/999", json={"genres": ["soul"]})
+
+    assert response.status_code == 404
+
+
+# DELETE /recommendations/{id}
+
+
+def test_delete_returns_204_and_removes_it(client: TestClient) -> None:
+    created = client.post("/recommendations", json=payload()).json()
+
+    response = client.delete(f"/recommendations/{created['id']}")
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert client.get(f"/recommendations/{created['id']}").status_code == 404
+
+
+def test_delete_missing_returns_404(client: TestClient) -> None:
+    assert client.delete("/recommendations/999").status_code == 404
 
 
 # GET /tags

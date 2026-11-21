@@ -33,3 +33,9 @@ class InvalidCursor(DomainError):
 
     def __init__(self) -> None:
         super().__init__("The cursor is not valid. Start again from the first page.")
+
+
+class InvalidRecommendation(DomainError):
+    """Rule 2 broken by a partial update, once merged with the stored values."""
+
+    code = "invalid_recommendation"

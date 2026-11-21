@@ -6,11 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Recommendation, RecommendationType, Tag, User
-from app.schemas import RecommendationCreate
+from app.schemas import RecommendationCreate, RecommendationUpdate
 from app.services import recommendations, tags
 from app.services.exceptions import (
     DuplicateRecommendation,
     InvalidCursor,
+    InvalidRecommendation,
     RecommendationNotFound,
 )
 from tests.conftest import VALID_TEXT, make_recommendation, make_user
@@ -227,3 +228,162 @@ def test_list_tags_returns_names_alphabetically(
     make_feed(session, curator, 2)
 
     assert [tag.name for tag in tags.list_tags(session)] == ["jazz", "mpb"]
+
+
+# Update
+
+
+def update(**fields: Any) -> RecommendationUpdate:
+    return RecommendationUpdate.model_validate(fields)
+
+
+def test_update_changes_only_sent_fields(session: Session, curator: User) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    new_text = VALID_TEXT.replace("1972", "1973")
+
+    updated = recommendations.update_recommendation(
+        session, created.id, update(text=new_text)
+    )
+
+    assert updated.text == new_text
+    assert updated.artist == "Arthur Verocai"
+    assert [tag.name for tag in updated.tags] == ["mpb", "jazz"]
+
+
+def test_update_artist_recomputes_keys(session: Session, curator: User) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+
+    updated = recommendations.update_recommendation(
+        session, created.id, update(artist="  Azymuth ", title="Light As A Feather")
+    )
+
+    assert updated.artist_key == "azymuth"
+    assert updated.title_key == "light as a feather"
+
+
+def test_update_replaces_genres(session: Session, curator: User) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+
+    updated = recommendations.update_recommendation(
+        session, created.id, update(genres=["Soul", "jazz"])
+    )
+
+    assert [tag.name for tag in updated.tags] == ["soul", "jazz"]
+
+
+def test_update_sets_updated_at(session: Session, curator: User) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    created.updated_at = datetime(2000, 1, 1)
+    session.commit()
+
+    updated = recommendations.update_recommendation(
+        session, created.id, update(genres=["soul"])
+    )
+
+    assert updated.updated_at > datetime(2000, 1, 1)
+
+
+def test_update_to_existing_artist_and_title_raises_duplicate(
+    session: Session, curator: User
+) -> None:
+    first = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    second = recommendations.create_recommendation(
+        session, curator, new_recommendation(title="Saudade")
+    )
+
+    with pytest.raises(DuplicateRecommendation) as error:
+        recommendations.update_recommendation(
+            session, second.id, update(title="ARTHUR VEROCAI")
+        )
+
+    assert error.value.existing_id == first.id
+
+
+def test_update_keeping_own_artist_and_title_persists(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+
+    updated = recommendations.update_recommendation(
+        session, created.id, update(title="arthur verocai")
+    )
+
+    assert updated.title == "arthur verocai"
+
+
+def test_update_to_artist_with_null_title_persists(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+
+    updated = recommendations.update_recommendation(
+        session, created.id, update(type="artist", title=None)
+    )
+
+    assert updated.type is RecommendationType.ARTIST
+    assert updated.title is None
+    assert updated.title_key == ""
+
+
+def test_update_to_artist_keeping_title_raises_invalid(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+
+    with pytest.raises(InvalidRecommendation, match="cannot have a title"):
+        recommendations.update_recommendation(
+            session, created.id, update(type="artist")
+        )
+
+
+def test_update_removing_album_title_raises_invalid(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+
+    with pytest.raises(InvalidRecommendation, match="title is required"):
+        recommendations.update_recommendation(session, created.id, update(title=None))
+
+
+def test_update_missing_raises_not_found(session: Session) -> None:
+    with pytest.raises(RecommendationNotFound):
+        recommendations.update_recommendation(session, 999, update(text=VALID_TEXT))
+
+
+# Delete
+
+
+def test_delete_removes_recommendation_and_keeps_tags(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+
+    recommendations.delete_recommendation(session, created.id)
+
+    assert session.get(Recommendation, created.id) is None
+    assert session.scalars(select(Tag.name).order_by(Tag.name)).all() == ["jazz", "mpb"]
+
+
+def test_delete_missing_raises_not_found(session: Session) -> None:
+    with pytest.raises(RecommendationNotFound):
+        recommendations.delete_recommendation(session, 999)

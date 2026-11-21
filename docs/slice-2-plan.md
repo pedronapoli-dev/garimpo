@@ -1,6 +1,6 @@
 # Slice 2 plan: models, migrations and recommendation CRUD
 
-Status: approved on 2026-11-18. The decisions below were refined into the "Data model" section of `docs/requirements.md`, which takes precedence (rule 7 also matches on `type`, and the unique index lives in the database). Read it together with `docs/requirements.md`, `CLAUDE.md`, `api/CLAUDE.md` and `.claude/rules/python.md`.
+Status: approved on 2026-11-18; implemented on 2026-11-21 (see `docs/slice-2-blueprint.md`). The decisions below were refined into the "Data model" section of `docs/requirements.md`, which takes precedence (rule 7 also matches on `type`, and the unique index lives in the database). Read it together with `docs/requirements.md`, `CLAUDE.md`, `api/CLAUDE.md` and `.claude/rules/python.md`.
 
 ## Where things stand
 

@@ -10,6 +10,7 @@ from app.services.exceptions import (
     DomainError,
     DuplicateRecommendation,
     InvalidCursor,
+    InvalidRecommendation,
     RecommendationNotFound,
 )
 
@@ -17,6 +18,7 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
     RecommendationNotFound: status.HTTP_404_NOT_FOUND,
     DuplicateRecommendation: status.HTTP_409_CONFLICT,
     InvalidCursor: 422,
+    InvalidRecommendation: 422,
 }
 
 
