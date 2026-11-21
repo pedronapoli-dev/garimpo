@@ -1,18 +1,21 @@
-import { Stack } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
+import { Button } from '@/components/button';
 import { Chip } from '@/components/chip';
 import { ScreenMessage } from '@/components/screen-message';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useSession } from '@/stores/session';
 
 import { TYPE_LABELS, formatDate, headline } from '../format';
-import { useRecommendation } from '../queries';
+import { useDeleteRecommendation, useRecommendation } from '../queries';
 
 export function DetailScreen({ id }: { id: number }) {
   const query = useRecommendation(id);
+  const userId = useSession((state) => state.user?.id);
 
   if (query.isPending) {
     return <ActivityIndicator style={styles.loading} />;
@@ -48,12 +51,48 @@ export function DetailScreen({ id }: { id: number }) {
           Recommended by {recommendation.author.display_name} on{' '}
           {formatDate(recommendation.created_at)}
         </ThemedText>
+        {recommendation.author.id === userId ? <AuthorActions id={recommendation.id} /> : null}
       </ScrollView>
     </ThemedView>
   );
 }
 
+/** Rule 5: only the author sees these; the API enforces it again. */
+function AuthorActions({ id }: { id: number }) {
+  const router = useRouter();
+  const remove = useDeleteRecommendation(id);
+
+  function confirmDelete() {
+    Alert.alert('Delete this recommendation?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => remove.mutate(undefined, { onSuccess: () => router.back() }),
+      },
+    ]);
+  }
+
+  return (
+    <View style={styles.actions}>
+      <Button
+        title="Edit"
+        variant="secondary"
+        onPress={() => router.push(`/recommendations/${id}/edit`)}
+      />
+      <Button
+        title="Delete"
+        variant="secondary"
+        onPress={confirmDelete}
+        loading={remove.isPending}
+      />
+      {remove.isError ? <ThemedText>{errorMessage(remove.error)}</ThemedText> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  actions: { gap: Spacing.two, marginTop: Spacing.three },
   container: { flex: 1 },
   loading: { marginTop: Spacing.five },
   content: { padding: Spacing.four, gap: Spacing.three },

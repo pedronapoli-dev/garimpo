@@ -1,4 +1,4 @@
-import type { RecommendationCreate, RecommendationType } from './types';
+import type { Recommendation, RecommendationCreate, RecommendationType } from './types';
 
 // The API enforces these rules (rule 2). The app repeats them only to give
 // feedback while typing; it still handles the API's 422 responses.
@@ -20,6 +20,17 @@ export type FormErrors = Partial<Record<keyof RecommendationForm, string>>;
 
 export function emptyForm(): RecommendationForm {
   return { type: 'album', artist: '', title: '', genres: '', text: '' };
+}
+
+/** Pre-fills the edit form with a stored recommendation. */
+export function formFromRecommendation(recommendation: Recommendation): RecommendationForm {
+  return {
+    type: recommendation.type,
+    artist: recommendation.artist,
+    title: recommendation.title ?? '',
+    genres: recommendation.genres.join(', '),
+    text: recommendation.text,
+  };
 }
 
 /** "MPB, Hip  Hop, mpb" -> ["mpb", "hip hop"], the same normalization as the API. */
