@@ -7,6 +7,7 @@ FastAPI + Pydantic, SQLAlchemy 2.0 + Alembic (starting in slice 2), SQLite. Mana
 Always run from inside `api/` and always through `uv run`. Never use `pip install` or activate `.venv` manually.
 
 - Tests: `uv run pytest`
+- Service coverage (from slice 2 step 4 on): `uv run pytest --cov`; fails below 100% on `app/services`
 - Lint: `uv run ruff check .`
 - Format: `uv run ruff format .`
 - Local server: `uv run fastapi dev main.py` (docs at http://127.0.0.1:8000/docs)
@@ -35,11 +36,13 @@ api/
     schemas.py         API input and output (Pydantic)
     routers/           one file per resource; HTTP only, no business rules
     services/          business rules; unaware of HTTP
-    repositories/      database access; unaware of business rules
   migrations/          Alembic
   tests/
 ```
 
-- Dependencies flow one way: routers → services → repositories.
-- Business rule violations are domain exceptions raised in services; routers translate them into `HTTPException`.
+- Dependencies flow one way: routers → services → models.
+- No repository layer: services are module-level functions that receive a `Session`. Move a query to its own module only when two services share it.
+- Business rule violations are domain exceptions raised in services. `main.py` maps them to status codes and the `ErrorOut` schema with `app.add_exception_handler`; routers do not catch them.
+- `app/llm/` (slice 7 only) is the one place for a `Protocol`: a Claude client and a deterministic fake.
+- Architecture and testing strategy: `docs/requirements.md`.
 - Do not use the `src/` layout, and do not add `__init__.py` outside `app/` and its subfolders.

@@ -29,3 +29,7 @@ When writing or reviewing code, replace these patterns with the Python equivalen
 - Plain `assert`, no assertion libraries.
 - Shared fixtures in `tests/conftest.py`.
 - Business rules are tested at the service level, without HTTP. Routers are tested with `TestClient`, covering status codes and response shape.
+- Files stay flat in `tests/`: `test_<resource>_service.py` for rules, `test_<resource>_api.py` for routers, `test_schemas.py`, `test_models.py`, `test_migrations.py`.
+- Services and schemas are written test first (red, green, refactor). Models and migrations get tests alongside them.
+- Tests use the real in-memory SQLite session; do not mock the database or SQLAlchemy.
+- Test data comes from helper functions in `conftest.py` (`make_user`, `make_recommendation`) with keyword overrides.
