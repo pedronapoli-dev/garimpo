@@ -5,6 +5,7 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     StringConstraints,
     field_validator,
@@ -136,6 +137,49 @@ class TagOut(BaseModel):
 
     id: int
     name: str
+
+
+Email = Annotated[EmailStr, AfterValidator(str.lower)]
+DisplayName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)
+]
+# Argon2 has no input limit; the maximum only stops absurd payloads.
+Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+
+class SignupIn(BaseModel):
+    invite_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    email: Email
+    display_name: DisplayName
+    password: Password
+
+
+class LoginIn(BaseModel):
+    email: Email
+    # No length rule on login: a wrong password is just a wrong password.
+    password: str
+
+
+class CurrentUserOut(BaseModel):
+    """The logged-in user, including the private email."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    display_name: str
+
+
+class SessionOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: CurrentUserOut
+
+
+class InviteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
 
 
 class ErrorOut(BaseModel):

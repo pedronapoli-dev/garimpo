@@ -77,6 +77,21 @@ class User(Base):
     )
 
 
+class Invite(Base):
+    """Rule 1: sign-up needs an invite, and each invite works once."""
+
+    __tablename__ = "invites"
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    created_by_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    # UNIQUE: one user is created by at most one invite.
+    used_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), unique=True
+    )
+    used_at: Mapped[datetime | None] = mapped_column(Timestamp)
+
+
 class Tag(Base):
     __tablename__ = "tags"
     id: Mapped[int] = mapped_column(primary_key=True)

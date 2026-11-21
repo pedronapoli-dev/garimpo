@@ -12,6 +12,7 @@ from app.services.exceptions import (
     DuplicateRecommendation,
     InvalidCursor,
     InvalidRecommendation,
+    NotAuthor,
     RecommendationNotFound,
 )
 from tests.conftest import VALID_TEXT, make_recommendation, make_user
@@ -244,7 +245,7 @@ def test_update_changes_only_sent_fields(session: Session, curator: User) -> Non
     new_text = VALID_TEXT.replace("1972", "1973")
 
     updated = recommendations.update_recommendation(
-        session, created.id, update(text=new_text)
+        session, curator, created.id, update(text=new_text)
     )
 
     assert updated.text == new_text
@@ -258,7 +259,10 @@ def test_update_artist_recomputes_keys(session: Session, curator: User) -> None:
     )
 
     updated = recommendations.update_recommendation(
-        session, created.id, update(artist="  Azymuth ", title="Light As A Feather")
+        session,
+        curator,
+        created.id,
+        update(artist="  Azymuth ", title="Light As A Feather"),
     )
 
     assert updated.artist_key == "azymuth"
@@ -271,7 +275,7 @@ def test_update_replaces_genres(session: Session, curator: User) -> None:
     )
 
     updated = recommendations.update_recommendation(
-        session, created.id, update(genres=["Soul", "jazz"])
+        session, curator, created.id, update(genres=["Soul", "jazz"])
     )
 
     assert [tag.name for tag in updated.tags] == ["soul", "jazz"]
@@ -285,7 +289,7 @@ def test_update_sets_updated_at(session: Session, curator: User) -> None:
     session.commit()
 
     updated = recommendations.update_recommendation(
-        session, created.id, update(genres=["soul"])
+        session, curator, created.id, update(genres=["soul"])
     )
 
     assert updated.updated_at > datetime(2000, 1, 1)
@@ -303,7 +307,7 @@ def test_update_to_existing_artist_and_title_raises_duplicate(
 
     with pytest.raises(DuplicateRecommendation) as error:
         recommendations.update_recommendation(
-            session, second.id, update(title="ARTHUR VEROCAI")
+            session, curator, second.id, update(title="ARTHUR VEROCAI")
         )
 
     assert error.value.existing_id == first.id
@@ -317,7 +321,7 @@ def test_update_keeping_own_artist_and_title_persists(
     )
 
     updated = recommendations.update_recommendation(
-        session, created.id, update(title="arthur verocai")
+        session, curator, created.id, update(title="arthur verocai")
     )
 
     assert updated.title == "arthur verocai"
@@ -331,7 +335,7 @@ def test_update_to_artist_with_null_title_persists(
     )
 
     updated = recommendations.update_recommendation(
-        session, created.id, update(type="artist", title=None)
+        session, curator, created.id, update(type="artist", title=None)
     )
 
     assert updated.type is RecommendationType.ARTIST
@@ -348,7 +352,7 @@ def test_update_to_artist_keeping_title_raises_invalid(
 
     with pytest.raises(InvalidRecommendation, match="cannot have a title"):
         recommendations.update_recommendation(
-            session, created.id, update(type="artist")
+            session, curator, created.id, update(type="artist")
         )
 
 
@@ -360,12 +364,16 @@ def test_update_removing_album_title_raises_invalid(
     )
 
     with pytest.raises(InvalidRecommendation, match="title is required"):
-        recommendations.update_recommendation(session, created.id, update(title=None))
+        recommendations.update_recommendation(
+            session, curator, created.id, update(title=None)
+        )
 
 
-def test_update_missing_raises_not_found(session: Session) -> None:
+def test_update_missing_raises_not_found(session: Session, curator: User) -> None:
     with pytest.raises(RecommendationNotFound):
-        recommendations.update_recommendation(session, 999, update(text=VALID_TEXT))
+        recommendations.update_recommendation(
+            session, curator, 999, update(text=VALID_TEXT)
+        )
 
 
 # Delete
@@ -378,12 +386,43 @@ def test_delete_removes_recommendation_and_keeps_tags(
         session, curator, new_recommendation()
     )
 
-    recommendations.delete_recommendation(session, created.id)
+    recommendations.delete_recommendation(session, curator, created.id)
 
     assert session.get(Recommendation, created.id) is None
     assert session.scalars(select(Tag.name).order_by(Tag.name)).all() == ["jazz", "mpb"]
 
 
-def test_delete_missing_raises_not_found(session: Session) -> None:
+def test_delete_missing_raises_not_found(session: Session, curator: User) -> None:
     with pytest.raises(RecommendationNotFound):
-        recommendations.delete_recommendation(session, 999)
+        recommendations.delete_recommendation(session, curator, 999)
+
+
+# Rule 5
+
+
+def test_update_by_other_user_raises_not_author(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    other = make_user(session, email="other@example.com")
+
+    with pytest.raises(NotAuthor):
+        recommendations.update_recommendation(
+            session, other, created.id, update(text=VALID_TEXT)
+        )
+
+
+def test_delete_by_other_user_raises_not_author(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    other = make_user(session, email="other@example.com")
+
+    with pytest.raises(NotAuthor):
+        recommendations.delete_recommendation(session, other, created.id)
+
+    assert session.get(Recommendation, created.id) is not None
