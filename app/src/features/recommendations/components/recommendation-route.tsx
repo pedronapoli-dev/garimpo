@@ -4,13 +4,13 @@ import type { ComponentType } from 'react';
 import { ScreenMessage } from '@/components/screen-message';
 
 /** Reads the [id] route param and renders the screen, or "not found" if it is not a number. */
-export function withRecommendationId(Screen: ComponentType<{ id: number }>) {
-  return function RecommendationRoute() {
+export function withRouteId(Screen: ComponentType<{ id: number }>, notFound: string) {
+  return function RouteWithId() {
     const { id } = useLocalSearchParams<{ id: string }>();
-    const recommendationId = Number(id);
-    if (!Number.isInteger(recommendationId)) {
-      return <ScreenMessage title="Recommendation not found" />;
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId)) {
+      return <ScreenMessage title={notFound} />;
     }
-    return <Screen id={recommendationId} />;
+    return <Screen id={numericId} />;
   };
 }

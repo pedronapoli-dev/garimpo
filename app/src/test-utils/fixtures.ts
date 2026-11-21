@@ -14,6 +14,9 @@ export function makeRecommendation(overrides: Partial<Recommendation> = {}): Rec
     author: { id: 1, display_name: 'Pedro' },
     created_at: '2026-11-21T12:00:00Z',
     updated_at: '2026-11-21T12:00:00Z',
+    vote_count: 0,
+    voted_by_me: false,
+    saved_by_me: false,
     ...overrides,
   };
 }

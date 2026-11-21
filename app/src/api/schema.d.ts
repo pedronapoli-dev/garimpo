@@ -62,7 +62,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Recommendations */
+        /**
+         * List Recommendations
+         * @description The feed. `author_id` lists one curator's recommendations (their profile).
+         */
         get: operations["listRecommendations"];
         put?: never;
         /** Create Recommendation */
@@ -92,6 +95,42 @@ export interface paths {
         patch: operations["updateRecommendation"];
         trace?: never;
     };
+    "/recommendations/{recommendation_id}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Vote Recommendation */
+        put: operations["voteRecommendation"];
+        post?: never;
+        /** Unvote Recommendation */
+        delete: operations["unvoteRecommendation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recommendations/{recommendation_id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Recommendation */
+        put: operations["saveRecommendation"];
+        post?: never;
+        /** Unsave Recommendation */
+        delete: operations["unsaveRecommendation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tags": {
         parameters: {
             query?: never;
@@ -101,6 +140,43 @@ export interface paths {
         };
         /** List Tags */
         get: operations["listTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get User */
+        get: operations["getUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/saves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Saves
+         * @description The current user's "listen later" list, newest recommendations first.
+         */
+        get: operations["listMySaves"];
         put?: never;
         post?: never;
         delete?: never;
@@ -158,6 +234,11 @@ export interface components {
             /** Existing Id */
             existing_id?: number | null;
         };
+        /**
+         * FeedSort
+         * @enum {string}
+         */
+        FeedSort: "newest" | "top";
         /** Health */
         Health: {
             /** Status */
@@ -214,6 +295,12 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Vote Count */
+            vote_count: number;
+            /** Voted By Me */
+            voted_by_me: boolean;
+            /** Saved By Me */
+            saved_by_me: boolean;
         };
         /** RecommendationPage */
         RecommendationPage: {
@@ -244,6 +331,11 @@ export interface components {
             genres?: string[] | null;
             /** Text */
             text?: string | null;
+        };
+        /** SaveOut */
+        SaveOut: {
+            /** Saved By Me */
+            saved_by_me: boolean;
         };
         /** SessionOut */
         SessionOut: {
@@ -276,6 +368,33 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+        };
+        /**
+         * UserProfileOut
+         * @description A curator's public profile (FR7). Their recommendations come from the feed.
+         */
+        UserProfileOut: {
+            /** Id */
+            id: number;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Recommendation Count */
+            recommendation_count: number;
+        };
+        /**
+         * VoteOut
+         * @description The new vote state, so the app can reconcile its optimistic update.
+         */
+        VoteOut: {
+            /** Vote Count */
+            vote_count: number;
+            /** Voted By Me */
+            voted_by_me: boolean;
         };
     };
     responses: never;
@@ -402,7 +521,9 @@ export interface operations {
     listRecommendations: {
         parameters: {
             query?: {
+                sort?: components["schemas"]["FeedSort"];
                 genre?: string | null;
+                author_id?: number | null;
                 cursor?: string | null;
                 limit?: number;
             };
@@ -419,6 +540,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecommendationPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Unprocessable Content */
@@ -501,6 +631,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecommendationOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Not Found */
@@ -650,6 +789,211 @@ export interface operations {
             };
         };
     };
+    voteRecommendation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recommendation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    unvoteRecommendation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recommendation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    saveRecommendation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recommendation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    unsaveRecommendation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recommendation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
     listTags: {
         parameters: {
             query?: never;
@@ -666,6 +1010,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TagOut"][];
+                };
+            };
+        };
+    };
+    getUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    listMySaves: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };

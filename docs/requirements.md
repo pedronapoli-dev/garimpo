@@ -210,7 +210,7 @@ garimpo/
 2. Models, migrations and recommendation CRUD, still without auth. **Done.**
 3. App: feed, detail and create form. **Done.**
 4. Auth and invites, in the API and the app. **Done.**
-5. Votes, saves and profile.
+5. Votes, saves and profile. **Done.**
 6. Reports, README, license and community guidelines.
 7. Curator assist (FR12), after the MVP. Applies the AI roadmap: Claude Messages API with tool use (`list_tags`), structured output validated by Pydantic, streaming to the app over SSE, retry and offline fallback, logged tokens, cost and latency (never the user's text), evals as a CI gate and prompt injection cases. Deployment with Docker and Amazon Bedrock follows this slice.
 

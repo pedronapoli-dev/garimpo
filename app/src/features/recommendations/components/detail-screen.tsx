@@ -12,6 +12,8 @@ import { useSession } from '@/stores/session';
 
 import { TYPE_LABELS, formatDate, headline } from '../format';
 import { useDeleteRecommendation, useRecommendation } from '../queries';
+import { SaveButton } from './save-button';
+import { VoteButton } from './vote-button';
 
 export function DetailScreen({ id }: { id: number }) {
   const query = useRecommendation(id);
@@ -43,6 +45,9 @@ export function DetailScreen({ id }: { id: number }) {
             <Chip key={genre} label={genre} />
           ))}
         </View>
+        <View style={styles.row}>
+          <VoteButton recommendation={recommendation} />
+        </View>
         <ThemedText type="smallBold" themeColor="textSecondary">
           Why listen
         </ThemedText>
@@ -51,6 +56,7 @@ export function DetailScreen({ id }: { id: number }) {
           Recommended by {recommendation.author.display_name} on{' '}
           {formatDate(recommendation.created_at)}
         </ThemedText>
+        <SaveButton recommendation={recommendation} />
         {recommendation.author.id === userId ? <AuthorActions id={recommendation.id} /> : null}
       </ScrollView>
     </ThemedView>
@@ -93,6 +99,7 @@ function AuthorActions({ id }: { id: number }) {
 
 const styles = StyleSheet.create({
   actions: { gap: Spacing.two, marginTop: Spacing.three },
+  row: { flexDirection: 'row' },
   container: { flex: 1 },
   loading: { marginTop: Spacing.five },
   content: { padding: Spacing.four, gap: Spacing.three },
