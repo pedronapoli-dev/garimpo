@@ -128,6 +128,8 @@ class RecommendationOut(BaseModel):
     vote_count: int
     voted_by_me: bool
     saved_by_me: bool
+    # Rule 6: true after 3 reports. Lists leave it out; the detail still opens.
+    hidden: bool
 
     @field_validator("genres", mode="before")
     @classmethod
@@ -139,6 +141,20 @@ class RecommendationOut(BaseModel):
 class RecommendationPage(BaseModel):
     items: list[RecommendationOut]
     next_cursor: str | None
+
+
+class ReportIn(BaseModel):
+    reason: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+    ]
+
+
+class ReportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    reason: str
+    created_at: UtcDatetime
 
 
 class VoteOut(BaseModel):

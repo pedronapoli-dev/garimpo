@@ -20,7 +20,9 @@ def get_profile(session: Session, user_id: int) -> UserProfileOut:
     if user is None:
         raise UserNotFound(user_id)
     count = session.scalar(
-        select(func.count()).where(Recommendation.author_id == user_id)
+        select(func.count()).where(
+            Recommendation.author_id == user_id, Recommendation.hidden.is_(False)
+        )
     )
     return UserProfileOut(
         id=user.id,

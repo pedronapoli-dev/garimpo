@@ -195,6 +195,8 @@ def list_recommendations(
 
     query = (
         _select(viewer)
+        # Rule 6: hidden recommendations leave every list until reviewed.
+        .where(Recommendation.hidden.is_(False))
         .order_by(key.desc(), Recommendation.id.desc())
         # One extra row tells whether there is a next page.
         .limit(limit + 1)

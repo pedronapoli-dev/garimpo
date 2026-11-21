@@ -99,6 +99,21 @@ class Save(Base):
     )
 
 
+class Report(Base):
+    """Rule 6: three reports from different users hide a recommendation."""
+
+    __tablename__ = "reports"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    recommendation_id: Mapped[int] = mapped_column(
+        ForeignKey("recommendations.id", ondelete="CASCADE")
+    )
+    reason: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+    # One report per user per recommendation, so 3 reports mean 3 people.
+    __table_args__ = (UniqueConstraint("user_id", "recommendation_id"),)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
