@@ -11,7 +11,8 @@ from app.models import Base, Recommendation, RecommendationType, User
 from main import app
 
 VALID_TEXT = (
-    "Why listen: " + "a lush orchestral record that sounds like nothing else. " * 2
+    "Why listen: Verocai wrote orchestral arrangements for this record that sound "
+    "like nothing else recorded in Brazil in 1972."
 )
 
 
