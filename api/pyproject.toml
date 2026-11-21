@@ -1,7 +1,7 @@
 [project]
 name = "api"
 version = "0.1.0"
-description = "Add your description here"
+description = "Garimpo API: community-driven music curation"
 readme = "README.md"
 authors = [
     { name = "Pedro Nápoli", email = "pedro_ncva@hotmail.com" }
