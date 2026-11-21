@@ -1,7 +1,50 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
-app = FastAPI(title="Garimpo")
+from app.routers import recommendations
+from app.schemas import ErrorOut
+from app.services.exceptions import DomainError, DuplicateRecommendation
+
+STATUS_BY_ERROR: dict[type[DomainError], int] = {
+    DuplicateRecommendation: status.HTTP_409_CONFLICT,
+}
+
+
+def camel_case_operation_id(route: APIRoute) -> str:
+    """create_recommendation -> createRecommendation, used by the app's types."""
+    first, *rest = route.name.split("_")
+    return first + "".join(word.capitalize() for word in rest)
+
+
+def error_response(status_code: int, error: ErrorOut) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code, content=error.model_dump(exclude_none=True)
+    )
+
+
+def handle_domain_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, DomainError)
+    error = ErrorOut(code=exc.code, message=exc.message, existing_id=exc.existing_id)
+    return error_response(STATUS_BY_ERROR[type(exc)], error)
+
+
+def handle_validation_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, RequestValidationError)
+    details = [
+        f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+        for error in exc.errors()
+    ]
+    error = ErrorOut(code="validation_error", message="; ".join(details))
+    return error_response(422, error)
+
+
+app = FastAPI(title="Garimpo", generate_unique_id_function=camel_case_operation_id)
+app.add_exception_handler(DomainError, handle_domain_error)
+app.add_exception_handler(RequestValidationError, handle_validation_error)
+app.include_router(recommendations.router)
 
 
 class Health(BaseModel):

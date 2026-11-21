@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import create_db_engine, get_session
 from app.models import Base, Recommendation, RecommendationType, User
+from app.services.users import DEV_CURATOR_EMAIL
 from main import app
 
 VALID_TEXT = (
@@ -26,7 +27,13 @@ def session() -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(session: Session) -> Iterator[TestClient]:
+def curator(session: Session) -> User:
+    """The dev curator the seed migration creates; create_all does not seed it."""
+    return make_user(session, email=DEV_CURATOR_EMAIL, display_name="Pedro")
+
+
+@pytest.fixture
+def client(session: Session, curator: User) -> Iterator[TestClient]:
     def override_get_session() -> Iterator[Session]:
         yield session
 
