@@ -86,3 +86,9 @@ export function toCreatePayload(form: RecommendationForm): RecommendationCreate 
     text: form.text.trim(),
   };
 }
+
+/** Adds suggested genres to the typed ones, skipping repeats, up to GENRES_MAX. */
+export function addGenres(form: RecommendationForm, genres: readonly string[]): RecommendationForm {
+  const merged = parseGenres([form.genres, ...genres].join(','));
+  return { ...form, genres: merged.slice(0, GENRES_MAX).join(', ') };
+}
