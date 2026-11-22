@@ -77,6 +77,10 @@ describe('textCounter', () => {
   it('shows the remaining characters once valid', () => {
     expect(textCounter('x'.repeat(100))).toEqual({ label: '100 / 1000', valid: true });
   });
+
+  it('is invalid past the maximum', () => {
+    expect(textCounter('x'.repeat(1001))).toEqual({ label: '1001 / 1000', valid: false });
+  });
 });
 
 describe('toCreatePayload', () => {
@@ -92,6 +96,11 @@ describe('toCreatePayload', () => {
 
   it('sends a null title for an artist', () => {
     expect(toCreatePayload(form({ type: 'artist', title: '' })).title).toBeNull();
+  });
+
+  it('drops a leftover title when the type is artist', () => {
+    // The user typed a title, then switched the type to artist.
+    expect(toCreatePayload(form({ type: 'artist', title: 'Leftover' })).title).toBeNull();
   });
 });
 
