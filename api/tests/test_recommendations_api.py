@@ -118,6 +118,8 @@ def test_openapi_operation_ids_are_camel_case() -> None:
         "listTags",
         "getUser",
         "listMySaves",
+        "getAssistStatus",
+        "reviewDraft",
     }
 
 

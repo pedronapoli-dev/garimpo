@@ -19,6 +19,7 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pyright
       - run: uv run pytest --cov
+      - run: uv run python -m evals.run
 
   app:
     runs-on: ubuntu-latest
@@ -37,6 +38,26 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test -- --ci
+
+  # Curator assist evals against Claude (slice 7). They cost money, so they run
+  # only when the ANTHROPIC_API_KEY repository secret is set. Forks never
+  # receive secrets.
+  evals-live:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+        if: env.ANTHROPIC_API_KEY != ''
+      - uses: astral-sh/setup-uv@v6
+        if: env.ANTHROPIC_API_KEY != ''
+      - run: uv sync --locked
+        if: env.ANTHROPIC_API_KEY != ''
+      - run: uv run python -m evals.run --live
+        if: env.ANTHROPIC_API_KEY != ''
 
   # The app's types are generated from the API. Fail when they are stale.
   contract:

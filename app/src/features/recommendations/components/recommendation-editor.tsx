@@ -10,7 +10,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-import { type RecommendationForm, textCounter, validateForm } from '../form';
+import { AssistPanel } from '../../assist/components/assist-panel';
+import { type RecommendationForm, addGenres, textCounter, validateForm } from '../form';
 import { TypePicker } from './type-picker';
 
 type RecommendationEditorProps = {
@@ -102,6 +103,13 @@ export function RecommendationEditor({
             multiline
             style={styles.textArea}
             textAlignVertical="top"
+          />
+          <AssistPanel
+            form={form}
+            onAddGenres={(genres) => {
+              setForm((current) => addGenres(current, genres));
+              onChange();
+            }}
           />
 
           {error ? (

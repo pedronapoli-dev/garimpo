@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AfterValidator,
@@ -9,6 +9,7 @@ from pydantic import (
     EmailStr,
     Field,
     StringConstraints,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
@@ -40,9 +41,13 @@ Genre = Annotated[
 ]
 
 
-def _unique_genres(genres: list[str]) -> list[str]:
+def _dedupe(genres: list[str]) -> list[str]:
     # "Jazz" and "jazz " are one genre once normalized; keep the first order seen.
-    unique = list(dict.fromkeys(genres))
+    return list(dict.fromkeys(genres))
+
+
+def _unique_genres(genres: list[str]) -> list[str]:
+    unique = _dedupe(genres)
     if len(unique) < MIN_GENRES:
         raise ValueError(f"at least {MIN_GENRES} genre is required")
     return unique
@@ -52,6 +57,12 @@ Genres = Annotated[
     list[Genre],
     Field(min_length=MIN_GENRES, max_length=MAX_GENRES),
     AfterValidator(_unique_genres),
+]
+
+
+# Zero to five genres: a draft may have none yet, and a suggestion may be empty.
+OptionalGenres = Annotated[
+    list[Genre], Field(max_length=MAX_GENRES), AfterValidator(_dedupe)
 ]
 
 
@@ -231,3 +242,62 @@ class ErrorOut(BaseModel):
     code: str
     message: str
     existing_id: int | None = None
+
+
+# Curator assist (FR12, slice 7)
+
+DraftText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)
+]
+
+
+class AssistIn(BaseModel):
+    """A draft to review. Looser than RecommendationCreate: it is still being written."""
+
+    type: RecommendationType
+    artist: Artist
+    title: Annotated[Title | None, AfterValidator(_empty_to_none)] = None
+    text: DraftText
+    genres: OptionalGenres = []
+
+
+class AssistResult(BaseModel):
+    explains_why: bool
+    feedback: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=600)
+    ]
+    suggested_genres: OptionalGenres
+
+
+class FeedbackDelta(BaseModel):
+    """A piece of the feedback text, streamed while it is written."""
+
+    type: Literal["feedback_delta"] = "feedback_delta"
+    text: str
+
+
+class AssistDone(BaseModel):
+    type: Literal["done"] = "done"
+    result: AssistResult
+
+
+class AssistFailed(BaseModel):
+    type: Literal["error"] = "error"
+    code: str
+    message: str
+
+
+# One server-sent event. The "type" field picks the model, like a Swift enum
+# with associated values decoded by a discriminator.
+AssistEvent = Annotated[
+    FeedbackDelta | AssistDone | AssistFailed, Field(discriminator="type")
+]
+ASSIST_EVENT: TypeAdapter[FeedbackDelta | AssistDone | AssistFailed] = TypeAdapter(
+    AssistEvent
+)
+
+
+class AssistStatusOut(BaseModel):
+    """Whether the assist is configured. Without an API key the app hides it."""
+
+    enabled: bool

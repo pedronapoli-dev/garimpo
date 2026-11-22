@@ -5,7 +5,17 @@ import pytest
 from pydantic import ValidationError
 
 from app.models import RecommendationType, Tag
-from app.schemas import RecommendationCreate, RecommendationOut, RecommendationUpdate
+from app.schemas import (
+    ASSIST_EVENT,
+    AssistDone,
+    AssistFailed,
+    AssistIn,
+    AssistResult,
+    FeedbackDelta,
+    RecommendationCreate,
+    RecommendationOut,
+    RecommendationUpdate,
+)
 from tests.conftest import VALID_TEXT
 
 
@@ -158,3 +168,96 @@ def test_out_from_orm_returns_genre_names_and_utc_timestamps() -> None:
     assert out.genres == ["mpb", "jazz"]
     assert out.created_at == naive.replace(tzinfo=UTC)
     assert "genres" in out.model_dump(by_alias=True)
+
+
+# Curator assist (slice 7)
+
+
+def assist_draft(**overrides: Any) -> dict[str, Any]:
+    fields: dict[str, Any] = {
+        "type": "album",
+        "artist": "Arthur Verocai",
+        "title": "Arthur Verocai",
+        "text": "Great album.",
+    }
+    return fields | overrides
+
+
+def test_assist_in_accepts_a_draft_shorter_than_a_recommendation() -> None:
+    draft = AssistIn.model_validate(assist_draft(text=" Great album. "))
+
+    assert draft.text == "Great album."
+    assert draft.genres == []
+
+
+@pytest.mark.parametrize("text", ["", "   ", "x" * 1001])
+def test_assist_in_text_out_of_range_raises(text: str) -> None:
+    with pytest.raises(ValidationError):
+        AssistIn.model_validate(assist_draft(text=text))
+
+
+def test_assist_in_normalizes_genres_and_allows_none() -> None:
+    draft = AssistIn.model_validate(assist_draft(genres=[" MPB ", "mpb", "Jazz"]))
+
+    assert draft.genres == ["mpb", "jazz"]
+
+
+def test_assist_in_more_than_five_genres_raises() -> None:
+    with pytest.raises(ValidationError):
+        AssistIn.model_validate(assist_draft(genres=list("abcdef")))
+
+
+def test_assist_in_empty_title_becomes_none() -> None:
+    assert AssistIn.model_validate(assist_draft(title="  ")).title is None
+
+
+def test_assist_result_normalizes_and_deduplicates_genres() -> None:
+    result = AssistResult(
+        explains_why=True, feedback=" Clear. ", suggested_genres=["Jazz", "jazz "]
+    )
+
+    assert result.feedback == "Clear."
+    assert result.suggested_genres == ["jazz"]
+
+
+@pytest.mark.parametrize("feedback", ["", "x" * 601])
+def test_assist_result_feedback_out_of_range_raises(feedback: str) -> None:
+    with pytest.raises(ValidationError):
+        AssistResult(explains_why=False, feedback=feedback, suggested_genres=[])
+
+
+def test_assist_result_more_than_five_genres_raises() -> None:
+    with pytest.raises(ValidationError):
+        AssistResult(explains_why=False, feedback="ok", suggested_genres=list("abcdef"))
+
+
+@pytest.mark.parametrize(
+    ("payload", "kind"),
+    [
+        ({"type": "feedback_delta", "text": "Say"}, FeedbackDelta),
+        (
+            {
+                "type": "done",
+                "result": {
+                    "explains_why": True,
+                    "feedback": "Clear.",
+                    "suggested_genres": [],
+                },
+            },
+            AssistDone,
+        ),
+        (
+            {"type": "error", "code": "assist_unavailable", "message": "Later."},
+            AssistFailed,
+        ),
+    ],
+)
+def test_assist_event_is_chosen_by_its_type(
+    payload: dict[str, Any], kind: type
+) -> None:
+    assert isinstance(ASSIST_EVENT.validate_python(payload), kind)
+
+
+def test_assist_event_with_unknown_type_raises() -> None:
+    with pytest.raises(ValidationError):
+        ASSIST_EVENT.validate_python({"type": "other"})

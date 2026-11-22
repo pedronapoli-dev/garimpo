@@ -103,3 +103,12 @@ class AlreadyReported(DomainError):
 
     def __init__(self) -> None:
         super().__init__("You already reported this recommendation.")
+
+
+class AssistDisabled(DomainError):
+    """FR12 is optional: the server has no assistant configured."""
+
+    code = "assist_disabled"
+
+    def __init__(self) -> None:
+        super().__init__("The curator assist is not configured on this server.")

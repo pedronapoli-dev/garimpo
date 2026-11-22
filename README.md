@@ -12,6 +12,7 @@ Garimpo is an open source study project: a Python API and a React Native app, bu
 - A feed sorted by newest or most voted, filtered by genre, with cursor pagination.
 - Votes (one per person, never on your own), "listen later" saves and curator profiles.
 - Three reports from different people hide a recommendation until it is reviewed.
+- Optional curator assist: while writing, Claude says whether the text explains why to listen and suggests existing genres. It never recommends music. Without an API key the app works the same, without the assist.
 
 ## Stack
 
@@ -46,10 +47,19 @@ Sign up in the app's Account tab with the invite code. On a physical device or t
 
 Outside local development, set `GARIMPO_JWT_SECRET` to a long random value.
 
+The curator assist is off unless the API has a model behind it:
+
+| Variable | Effect |
+|---|---|
+| `GARIMPO_ASSIST_FAKE=1` | Serves a deterministic fake, to work on the app without a key or any cost |
+| `ANTHROPIC_API_KEY` | Enables the assist with Claude |
+| `GARIMPO_ASSIST_MODEL` | The Claude model, `claude-sonnet-5-5` by default |
+
 ## Checks
 
 ```sh
 cd api && uv run pytest --cov && uv run pyright && uv run ruff check . && uv run ruff format --check .
+cd api && uv run python -m evals.run           # curator assist evals with the fake; --live calls Claude
 cd app && npm test && npm run typecheck && npm run lint && npm run format:check
 cd app && npm run generate:api   # after any API change; commit src/api/schema.d.ts
 ```

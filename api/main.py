@@ -4,10 +4,11 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
-from app.routers import auth, invites, recommendations, tags, users, votes
+from app.routers import assist, auth, invites, recommendations, tags, users, votes
 from app.schemas import ErrorOut
 from app.services.exceptions import (
     AlreadyReported,
+    AssistDisabled,
     DomainError,
     DuplicateRecommendation,
     EmailTaken,
@@ -35,6 +36,7 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
     InvalidCursor: 422,
     InvalidRecommendation: 422,
     InvalidInvite: 422,
+    AssistDisabled: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 
@@ -75,6 +77,7 @@ app.include_router(recommendations.router)
 app.include_router(votes.router)
 app.include_router(tags.router)
 app.include_router(users.router)
+app.include_router(assist.router)
 
 
 class Health(BaseModel):

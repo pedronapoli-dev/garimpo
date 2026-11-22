@@ -2,6 +2,7 @@ import { VALID_TEXT, makeRecommendation } from '@/test-utils/fixtures';
 
 import {
   type RecommendationForm,
+  addGenres,
   emptyForm,
   formFromRecommendation,
   parseGenres,
@@ -119,5 +120,33 @@ describe('formFromRecommendation', () => {
       genres: 'mpb, jazz',
       text: VALID_TEXT,
     });
+  });
+});
+
+describe('addGenres', () => {
+  it('appends suggested genres to the typed ones', () => {
+    expect(addGenres(form({ genres: 'MPB' }), ['jazz']).genres).toBe('mpb, jazz');
+  });
+
+  it('skips genres that are already there', () => {
+    expect(addGenres(form({ genres: 'mpb, jazz' }), ['Jazz', 'samba']).genres).toBe(
+      'mpb, jazz, samba',
+    );
+  });
+
+  it('stops at the maximum number of genres', () => {
+    const full = addGenres(form({ genres: 'a, b, c, d' }), ['e', 'f']);
+
+    expect(full.genres).toBe('a, b, c, d, e');
+  });
+
+  it('fills an empty field', () => {
+    expect(addGenres(form({ genres: '' }), ['jazz']).genres).toBe('jazz');
+  });
+
+  it('keeps the other fields', () => {
+    const before = form({ genres: '' });
+
+    expect(addGenres(before, ['jazz'])).toEqual({ ...before, genres: 'jazz' });
   });
 });
