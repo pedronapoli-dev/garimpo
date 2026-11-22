@@ -11,6 +11,7 @@ from app.llm.claude import (
     LIST_TAGS_TOOL,
     SYSTEM_PROMPT,
     ClaudeAssistant,
+    FeedbackStream,
     build_messages,
     parse_result,
     tool_result_for_tags,
@@ -117,3 +118,51 @@ def test_list_tags_tool_is_strict() -> None:
     assert LIST_TAGS_TOOL["name"] == "list_tags"
     assert LIST_TAGS_TOOL["strict"] is True
     assert LIST_TAGS_TOOL["input_schema"]["additionalProperties"] is False
+
+
+def fed(*chunks: str) -> list[str]:
+    stream = FeedbackStream()
+    return [stream.feed(chunk) for chunk in chunks]
+
+
+def test_feedback_stream_yields_only_the_feedback_value() -> None:
+    text = '{"explains_why": false, "feedback": "Say why.", "suggested_genres": []}'
+
+    assert "".join(fed(text)) == "Say why."
+
+
+def test_feedback_stream_yields_text_as_it_arrives() -> None:
+    assert fed('{"explains_why":true,"feed', 'back":"Say', " why", '."}') == [
+        "",
+        "Say",
+        " why",
+        ".",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("chunks", "expected"),
+    [
+        (['{"feedback":"a\\', 'nb"}'], "a\nb"),
+        (['{"feedback":"say \\', '"why\\"."}'], 'say "why".'),
+        (['{"feedback":"caf\\u00', 'e9"}'], "café"),
+        (['{"feedback":"\\ud83c', '\\udfb5"}'], "🎵"),
+        (['{"feedback":"a\\\\', '"}'], "a\\"),
+    ],
+)
+def test_feedback_stream_holds_escapes_split_across_chunks(
+    chunks: list[str], expected: str
+) -> None:
+    assert "".join(fed(*chunks)) == expected
+
+
+def test_feedback_stream_stops_at_the_closing_quote() -> None:
+    assert fed('{"feedback":"Done."', ',"suggested_genres":["jazz"]}') == ["Done.", ""]
+
+
+def test_feedback_stream_ignores_text_without_the_field() -> None:
+    assert fed("Let me check the genres.") == [""]
+
+
+def test_feedback_stream_survives_a_malformed_escape() -> None:
+    assert fed('{"feedback":"a\\q', 'b"}') == ["", ""]

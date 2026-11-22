@@ -1,6 +1,7 @@
 """ClaudeAssistant: the curator assist on the Claude Messages API (FR12)."""
 
 import json
+import re
 from collections.abc import Iterator, Sequence
 from html import escape
 from typing import Any
@@ -102,6 +103,67 @@ def _prices(model: str) -> tuple[float, float]:
         return PRICES_PER_MTOK[model]
     except KeyError:
         raise ValueError(f"No price for the assist model {model!r}.") from None
+
+
+class FeedbackStream:
+    """Pulls the feedback text out of the model's JSON while it is written.
+
+    The final answer is JSON, but the curator should read the feedback as it
+    streams. Each chunk may end mid-key or mid-escape, so anything undecidable
+    stays in the buffer until the next chunk.
+    """
+
+    _START = re.compile(r'"feedback"\s*:\s*"')
+
+    def __init__(self) -> None:
+        self._buffer = ""
+        self._inside = False
+        self._closed = False
+
+    def feed(self, chunk: str) -> str:
+        if self._closed:
+            return ""
+        self._buffer += chunk
+        if not self._inside:
+            start = self._START.search(self._buffer)
+            if start is None:
+                return ""
+            self._buffer = self._buffer[start.end() :]
+            self._inside = True
+        end, self._closed = self._readable_end()
+        raw, self._buffer = self._buffer[:end], self._buffer[end:]
+        try:
+            return json.loads(f'"{raw}"', strict=False)
+        except json.JSONDecodeError:
+            # parse_result reports the bad answer when the stream ends.
+            self._closed = True
+            return ""
+
+    def _readable_end(self) -> tuple[int, bool]:
+        """Where the complete characters end, and whether the string closed."""
+        index = 0
+        while index < len(self._buffer):
+            character = self._buffer[index]
+            if character == '"':
+                return index, True
+            if character != "\\":
+                index += 1
+                continue
+            size = self._escape_size(index)
+            if index + size > len(self._buffer):
+                break
+            index += size
+        return index, False
+
+    def _escape_size(self, index: int) -> int:
+        """Length of the escape at index; a surrogate pair counts as one."""
+        kind = self._buffer[index + 1 : index + 2]
+        if kind != "u":
+            return 2
+        hex_digits = self._buffer[index + 2 : index + 6].casefold()
+        if len(hex_digits) < 4:
+            return 6
+        return 12 if hex_digits[:2] in {"d8", "d9", "da", "db"} else 6
 
 
 class ClaudeAssistant:
