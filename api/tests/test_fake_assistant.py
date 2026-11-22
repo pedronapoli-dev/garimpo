@@ -2,6 +2,7 @@ import pytest
 
 from app.llm.fake import FakeAssistant
 from app.llm.protocol import AssistUnavailable, AssistUsage
+from app.models import RecommendationType
 from app.schemas import AssistIn, AssistResult, FeedbackDelta
 
 TAGS = ["jazz", "mpb", "samba"]
@@ -12,7 +13,12 @@ WHY = (
 
 
 def draft(text: str) -> AssistIn:
-    return AssistIn(type="album", artist="Arthur Verocai", title="Arthur", text=text)
+    return AssistIn(
+        type=RecommendationType.ALBUM,
+        artist="Arthur Verocai",
+        title="Arthur",
+        text=text,
+    )
 
 
 def run(assistant: FakeAssistant, text: str) -> list[object]:
