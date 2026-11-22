@@ -1,7 +1,9 @@
 """ClaudeAssistant: the curator assist on the Claude Messages API (FR12)."""
 
 import json
+import logging
 import re
+import time
 from collections.abc import Iterator, Sequence
 from html import escape
 from typing import Any
@@ -10,7 +12,14 @@ import anthropic
 from pydantic import ValidationError
 
 from app.llm.protocol import AssistItem, AssistUnavailable, AssistUsage
-from app.schemas import AssistIn, AssistResult
+from app.schemas import AssistIn, AssistResult, FeedbackDelta
+
+logger = logging.getLogger("garimpo.assist")
+
+# One call to list_tags, one answer, and one spare.
+MAX_TURNS = 3
+# Covers the thinking and a feedback of at most 600 characters.
+MAX_TOKENS = 4000
 
 SYSTEM_PROMPT = """\
 You review drafts written by music curators for Garimpo, a community \
@@ -53,6 +62,20 @@ LIST_TAGS_TOOL: dict[str, Any] = {
         "additionalProperties": False,
         "required": [],
     },
+}
+
+
+# The structured output. Key order matters: FeedbackStream reads feedback while
+# it is written. Length limits live in AssistResult, checked by parse_result.
+RESULT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "explains_why": {"type": "boolean"},
+        "feedback": {"type": "string"},
+        "suggested_genres": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["explains_why", "feedback", "suggested_genres"],
+    "additionalProperties": False,
 }
 
 
@@ -171,18 +194,64 @@ class ClaudeAssistant:
         # A bad GARIMPO_ASSIST_MODEL fails here, before any tokens are spent.
         _prices(model)
         self.model = model
-        self.client = client or anthropic.Anthropic(timeout=20, max_retries=1)
+        self.client: Any = client or anthropic.Anthropic(timeout=20, max_retries=1)
 
     def review(self, draft: AssistIn, tags: Sequence[str]) -> Iterator[AssistItem]:
-        # TODO(slice 7):
-        # 1. Stream a Messages request: SYSTEM_PROMPT, build_messages(draft),
-        #    tools=[LIST_TAGS_TOOL], adaptive thinking.
-        # 2. When the model calls list_tags, answer with tool_result_for_tags
-        #    and continue the loop.
-        # 3. Yield FeedbackDelta for the feedback text as it streams.
-        # 4. Yield parse_result(...) of the final answer (structured output).
-        # 5. Yield usage_from(...) with the summed usage and the latency.
-        # 6. Turn timeouts, connection errors, rate limits and a refusal stop
-        #    reason into AssistUnavailable.
+        started = time.monotonic()
+        messages = build_messages(draft)
+        input_tokens = output_tokens = 0
+        try:
+            for _ in range(MAX_TURNS):
+                # A new parser per turn: text before a tool call is not feedback.
+                feedback = FeedbackStream()
+                with self.client.messages.stream(
+                    model=self.model,
+                    max_tokens=MAX_TOKENS,
+                    system=SYSTEM_PROMPT,
+                    tools=[LIST_TAGS_TOOL],
+                    messages=messages,
+                    thinking={"type": "adaptive"},
+                    output_config={
+                        "effort": "low",
+                        "format": {"type": "json_schema", "schema": RESULT_SCHEMA},
+                    },
+                ) as stream:
+                    for event in stream:
+                        if event.type == "text" and (
+                            delta := feedback.feed(event.text)
+                        ):
+                            yield FeedbackDelta(text=delta)
+                    response = stream.get_final_message()
 
-        raise NotImplementedError("TODO(slice 7)")
+                input_tokens += response.usage.input_tokens
+                output_tokens += response.usage.output_tokens
+
+                if response.stop_reason == "tool_use":
+                    messages.append({"role": "assistant", "content": response.content})
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                tool_result_for_tags(block.id, tags)
+                                for block in response.content
+                                if block.type == "tool_use"
+                            ],
+                        }
+                    )
+                    continue
+                if response.stop_reason != "end_turn":
+                    # A refusal or a cut-off answer has no result to show.
+                    raise AssistUnavailable(f"Stopped: {response.stop_reason}.")
+
+                text = "".join(
+                    block.text for block in response.content if block.type == "text"
+                )
+                yield parse_result(text)
+                latency_ms = round((time.monotonic() - started) * 1000)
+                yield usage_from(self.model, input_tokens, output_tokens, latency_ms)
+                return
+        except anthropic.APIError as error:
+            # The class name only: an API error can quote the request.
+            logger.warning("assist api error: %s", type(error).__name__)
+            raise AssistUnavailable(type(error).__name__) from error
+        raise AssistUnavailable("Too many tool turns.")
