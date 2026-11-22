@@ -1,10 +1,11 @@
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
 import { Button } from '@/components/button';
 import { TextField } from '@/components/text-field';
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -29,7 +30,7 @@ export function LoginScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScreenScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <TextField
           label="Email"
           value={form.email}
@@ -55,7 +56,7 @@ export function LoginScreen() {
         <Link href="/account/signup" replace>
           <ThemedText type="link">Have an invite? Create an account</ThemedText>
         </Link>
-      </ScrollView>
+      </ScreenScrollView>
     </ThemedView>
   );
 }

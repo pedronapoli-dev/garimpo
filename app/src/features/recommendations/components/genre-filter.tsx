@@ -11,7 +11,9 @@ export function GenreFilter({ selected, onSelect }: GenreFilterProps) {
   const { data: tags = [] } = useTags();
   return (
     <ScrollView
+      testID="genre-filter"
       horizontal
+      style={styles.filter}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}>
       <Chip label="All" selected={selected === null} onPress={() => onSelect(null)} />
@@ -28,5 +30,8 @@ export function GenreFilter({ selected, onSelect }: GenreFilterProps) {
 }
 
 const styles = StyleSheet.create({
-  row: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  // Without flexGrow: 0, a horizontal ScrollView takes all the height it can.
+  // The negative margin lets the chips scroll to the screen's edges.
+  filter: { flexGrow: 0, marginHorizontal: -Spacing.three },
+  row: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
 });

@@ -22,19 +22,23 @@ export function FeedScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.sorts}>
-        {SORTS.map((option) => (
-          <Chip
-            key={option.value}
-            label={option.label}
-            selected={sort === option.value}
-            onPress={() => setSort(option.value)}
-          />
-        ))}
-      </View>
-      <GenreFilter selected={genre} onSelect={setGenre} />
       <RecommendationList
         query={feed}
+        header={
+          <View>
+            <View style={styles.sorts}>
+              {SORTS.map((option) => (
+                <Chip
+                  key={option.value}
+                  label={option.label}
+                  selected={sort === option.value}
+                  onPress={() => setSort(option.value)}
+                />
+              ))}
+            </View>
+            <GenreFilter selected={genre} onSelect={setGenre} />
+          </View>
+        }
         errorTitle="Could not load the feed"
         emptyTitle="Nothing here yet"
         emptyMessage={genre ? `No recommendations tagged ${genre}.` : 'Be the first to recommend.'}
@@ -45,10 +49,5 @@ export function FeedScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  sorts: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.two,
-  },
+  sorts: { flexDirection: 'row', gap: Spacing.two },
 });

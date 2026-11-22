@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import { ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Share, StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
 import { Button } from '@/components/button';
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -30,7 +31,7 @@ function SignedInAccount({ id, displayName, email }: SignedInAccountProps) {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+      <ScreenScrollView contentContainerStyle={styles.content}>
         <View>
           <ThemedText type="subtitle">{displayName}</ThemedText>
           <ThemedText themeColor="textSecondary">{email}</ThemedText>
@@ -71,7 +72,7 @@ function SignedInAccount({ id, displayName, email }: SignedInAccountProps) {
           onPress={() => router.navigate(`/users/${id}`)}
         />
         <Button title="Log out" variant="secondary" onPress={() => void logOut()} />
-      </ScrollView>
+      </ScreenScrollView>
     </ThemedView>
   );
 }
