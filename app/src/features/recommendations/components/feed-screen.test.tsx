@@ -7,7 +7,10 @@ import { createTestQueryClient, failure, ok, queryWrapper } from '@/test-utils/q
 
 import { FeedScreen } from './feed-screen';
 
-jest.mock('expo-router', () => ({ Link: ({ children }: { children: ReactNode }) => children }));
+jest.mock('expo-router', () => ({
+  Link: ({ children }: { children: ReactNode }) => children,
+  useRouter: () => ({ push: jest.fn() }),
+}));
 jest.mock('@/api/client', () => ({ client: { GET: jest.fn() } }));
 
 const GET = client.GET as jest.Mock;
@@ -51,4 +54,18 @@ it('shows an error with a retry button', async () => {
 
   expect(await screen.findByText('Could not load the feed')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
+});
+
+it('switches to the most voted sort', async () => {
+  mockApi(() => ok(makePage([1])));
+  await renderScreen();
+  await screen.findByText('Arthur Verocai — Album 1');
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Most voted' }));
+
+  await waitFor(() =>
+    expect(GET).toHaveBeenLastCalledWith('/recommendations', {
+      params: { query: { sort: 'top', genre: null, author_id: null, cursor: null } },
+    }),
+  );
 });

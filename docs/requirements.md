@@ -165,6 +165,7 @@ users 1 ───< N invites (created_by); users 0..1 ─── 1 invites (used_
 
 - A separate seed migration creates the dev curator (display name "Pedro", email `curator@garimpo.local`, password hash `"!"`, which no password matches).
 - Routes get the author from a `get_current_user` dependency that returns the dev curator. Slice 4 replaces only that dependency's body with JWT validation.
+- Since slice 4, the dev curator remains as the author of the recommendations created before auth, and creates the first invite: `uv run python -m app.cli create-invite`.
 
 ## Endpoints
 
@@ -208,9 +209,9 @@ garimpo/
 1. Minimal API: uv project, health endpoint, one test. **Done.**
 2. Models, migrations and recommendation CRUD, still without auth. **Done.**
 3. App: feed, detail and create form. **Done.**
-4. Auth and invites, in the API and the app.
-5. Votes, saves and profile.
-6. Reports, README, license and community guidelines.
+4. Auth and invites, in the API and the app. **Done.**
+5. Votes, saves and profile. **Done.**
+6. Reports, README, license and community guidelines. **Done.**
 7. Curator assist (FR12), after the MVP. Applies the AI roadmap: Claude Messages API with tool use (`list_tags`), structured output validated by Pydantic, streaming to the app over SSE, retry and offline fallback, logged tokens, cost and latency (never the user's text), evals as a CI gate and prompt injection cases. Deployment with Docker and Amazon Bedrock follows this slice.
 
 Suggested effort split: 60% API, 40% app.

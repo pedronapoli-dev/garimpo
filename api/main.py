@@ -4,21 +4,37 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
-from app.routers import recommendations, tags
+from app.routers import auth, invites, recommendations, tags, users, votes
 from app.schemas import ErrorOut
 from app.services.exceptions import (
+    AlreadyReported,
     DomainError,
     DuplicateRecommendation,
+    EmailTaken,
+    InvalidCredentials,
     InvalidCursor,
+    InvalidInvite,
     InvalidRecommendation,
+    NotAuthenticated,
+    NotAuthor,
+    OwnRecommendation,
     RecommendationNotFound,
+    UserNotFound,
 )
 
 STATUS_BY_ERROR: dict[type[DomainError], int] = {
+    NotAuthenticated: status.HTTP_401_UNAUTHORIZED,
+    InvalidCredentials: status.HTTP_401_UNAUTHORIZED,
+    NotAuthor: status.HTTP_403_FORBIDDEN,
+    OwnRecommendation: status.HTTP_403_FORBIDDEN,
+    UserNotFound: status.HTTP_404_NOT_FOUND,
     RecommendationNotFound: status.HTTP_404_NOT_FOUND,
     DuplicateRecommendation: status.HTTP_409_CONFLICT,
+    EmailTaken: status.HTTP_409_CONFLICT,
+    AlreadyReported: status.HTTP_409_CONFLICT,
     InvalidCursor: 422,
     InvalidRecommendation: 422,
+    InvalidInvite: 422,
 }
 
 
@@ -53,8 +69,12 @@ def handle_validation_error(request: Request, exc: Exception) -> JSONResponse:
 app = FastAPI(title="Garimpo", generate_unique_id_function=camel_case_operation_id)
 app.add_exception_handler(DomainError, handle_domain_error)
 app.add_exception_handler(RequestValidationError, handle_validation_error)
+app.include_router(auth.router)
+app.include_router(invites.router)
 app.include_router(recommendations.router)
+app.include_router(votes.router)
 app.include_router(tags.router)
+app.include_router(users.router)
 
 
 class Health(BaseModel):

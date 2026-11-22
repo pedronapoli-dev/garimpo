@@ -2,16 +2,22 @@ import base64
 import binascii
 from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import ColumnElement, Select, and_, exists, false, func, or_, select
+from sqlalchemy.orm import Session, joinedload, selectinload, with_expression
 
-from app.models import Recommendation, RecommendationType, Tag, User
+from app.models import Recommendation, RecommendationType, Save, Tag, User, Vote
 from app.normalization import normalize_key
-from app.schemas import RecommendationCreate, RecommendationUpdate, check_title_for_type
+from app.schemas import (
+    FeedSort,
+    RecommendationCreate,
+    RecommendationUpdate,
+    check_title_for_type,
+)
 from app.services.exceptions import (
     DuplicateRecommendation,
     InvalidCursor,
     InvalidRecommendation,
+    NotAuthor,
     RecommendationNotFound,
 )
 
@@ -37,14 +43,15 @@ def create_recommendation(
     )
     session.add(recommendation)
     session.commit()
-    return recommendation
+    # Reload with the per-viewer fields (vote_count, voted_by_me, saved_by_me).
+    return get_recommendation(session, recommendation.id, viewer=author)
 
 
 def update_recommendation(
-    session: Session, recommendation_id: int, data: RecommendationUpdate
+    session: Session, user: User, recommendation_id: int, data: RecommendationUpdate
 ) -> Recommendation:
     """Partial update: only the fields present in the request body change."""
-    recommendation = get_recommendation(session, recommendation_id)
+    recommendation = _get_own_recommendation(session, user, recommendation_id)
     changes = data.model_dump(exclude_unset=True)
     genres = changes.pop("genres", None)
 
@@ -72,12 +79,22 @@ def update_recommendation(
     recommendation.updated_at = func.now()
 
     session.commit()
-    return recommendation
+    return get_recommendation(session, recommendation.id, viewer=user)
 
 
-def delete_recommendation(session: Session, recommendation_id: int) -> None:
-    session.delete(get_recommendation(session, recommendation_id))
+def delete_recommendation(session: Session, user: User, recommendation_id: int) -> None:
+    session.delete(_get_own_recommendation(session, user, recommendation_id))
     session.commit()
+
+
+def _get_own_recommendation(
+    session: Session, user: User, recommendation_id: int
+) -> Recommendation:
+    """Rule 5: only the author can edit or delete."""
+    recommendation = get_recommendation(session, recommendation_id)
+    if recommendation.author_id != user.id:
+        raise NotAuthor()
+    return recommendation
 
 
 def _ensure_unique(
@@ -108,8 +125,48 @@ def _get_or_create_tags(session: Session, names: list[str]) -> list[Tag]:
     return [existing.get(name) or Tag(name=name) for name in names]
 
 
-def get_recommendation(session: Session, recommendation_id: int) -> Recommendation:
-    recommendation = session.get(Recommendation, recommendation_id)
+# Per-viewer fields, computed in SQL for every query (see query_expression in
+# models.py). Correlated subqueries: one small lookup per returned row.
+_vote_count = (
+    select(func.count())
+    .where(Vote.recommendation_id == Recommendation.id)
+    .correlate(Recommendation)
+    .scalar_subquery()
+)
+
+
+def _select(viewer: User | None) -> Select[Recommendation]:
+    """A SELECT of recommendations with author, tags and the viewer's state."""
+    if viewer is None:
+        voted_by_me: ColumnElement[bool] = false()
+        saved_by_me: ColumnElement[bool] = false()
+    else:
+        voted_by_me = exists().where(
+            Vote.recommendation_id == Recommendation.id, Vote.user_id == viewer.id
+        )
+        saved_by_me = exists().where(
+            Save.recommendation_id == Recommendation.id, Save.user_id == viewer.id
+        )
+    return (
+        select(Recommendation)
+        .options(
+            joinedload(Recommendation.author),
+            selectinload(Recommendation.tags),
+            with_expression(Recommendation.vote_count, _vote_count),
+            with_expression(Recommendation.voted_by_me, voted_by_me),
+            with_expression(Recommendation.saved_by_me, saved_by_me),
+        )
+        # Refresh objects already in the session, so the expressions are recomputed.
+        .execution_options(populate_existing=True)
+    )
+
+
+def get_recommendation(
+    session: Session, recommendation_id: int, *, viewer: User | None = None
+) -> Recommendation:
+    recommendation = session.scalars(
+        _select(viewer).where(Recommendation.id == recommendation_id)
+    ).one_or_none()
     if recommendation is None:
         raise RecommendationNotFound(recommendation_id)
     return recommendation
@@ -118,32 +175,51 @@ def get_recommendation(session: Session, recommendation_id: int) -> Recommendati
 def list_recommendations(
     session: Session,
     *,
+    viewer: User | None = None,
+    sort: FeedSort = FeedSort.NEWEST,
     genre: str | None = None,
+    author_id: int | None = None,
+    saved_by: User | None = None,
     cursor: str | None = None,
     limit: int = DEFAULT_PAGE_SIZE,
 ) -> tuple[list[Recommendation], str | None]:
-    """The feed, newest first. Returns one page and the cursor for the next one."""
+    """One page of recommendations and the cursor for the next one.
+
+    The feed, a curator's profile (author_id) and the saved list (saved_by)
+    are all this query with a different filter.
+    """
+    if sort is FeedSort.TOP:
+        key, order = _vote_count, Recommendation.vote_count
+    else:
+        key, order = Recommendation.created_at, Recommendation.created_at
+
     query = (
-        select(Recommendation)
-        .options(joinedload(Recommendation.author), selectinload(Recommendation.tags))
-        .order_by(Recommendation.created_at.desc(), Recommendation.id.desc())
+        _select(viewer)
+        # Rule 6: hidden recommendations leave every list until reviewed.
+        .where(Recommendation.hidden.is_(False))
+        .order_by(key.desc(), Recommendation.id.desc())
         # One extra row tells whether there is a next page.
         .limit(limit + 1)
     )
     if genre is not None:
         query = query.where(Recommendation.tags.any(Tag.name == normalize_key(genre)))
+    if author_id is not None:
+        query = query.where(Recommendation.author_id == author_id)
+    if saved_by is not None:
+        query = query.where(
+            exists().where(
+                Save.recommendation_id == Recommendation.id, Save.user_id == saved_by.id
+            )
+        )
     if cursor is not None:
-        created_at, recommendation_id = _decode_cursor(cursor)
-        # Rows strictly after the cursor in (created_at desc, id desc) order.
+        position, recommendation_id = _decode_cursor(cursor, sort)
+        # Rows strictly after the cursor in (key desc, id desc) order.
         # Comparing column by column makes each bound value use its column's
         # type; inside tuple_() they would not get the SQLite storage format.
         query = query.where(
             or_(
-                Recommendation.created_at < created_at,
-                and_(
-                    Recommendation.created_at == created_at,
-                    Recommendation.id < recommendation_id,
-                ),
+                key < position,
+                and_(key == position, Recommendation.id < recommendation_id),
             )
         )
 
@@ -151,18 +227,25 @@ def list_recommendations(
     if len(rows) <= limit:
         return rows, None
     page = rows[:limit]
-    return page, _encode_cursor(page[-1])
+    last = page[-1]
+    return page, _encode_cursor(sort, getattr(last, order.key), last.id)
 
 
-def _encode_cursor(recommendation: Recommendation) -> str:
-    raw = f"{recommendation.created_at.isoformat()}|{recommendation.id}"
+def _encode_cursor(
+    sort: FeedSort, position: datetime | int, recommendation_id: int
+) -> str:
+    value = position.isoformat() if isinstance(position, datetime) else str(position)
+    raw = f"{sort}|{value}|{recommendation_id}"
     return base64.urlsafe_b64encode(raw.encode()).decode()
 
 
-def _decode_cursor(cursor: str) -> tuple[datetime, int]:
+def _decode_cursor(cursor: str, sort: FeedSort) -> tuple[datetime | int, int]:
     try:
         raw = base64.urlsafe_b64decode(cursor.encode()).decode()
-        created_at, recommendation_id = raw.split("|")
-        return datetime.fromisoformat(created_at), int(recommendation_id)
+        cursor_sort, value, recommendation_id = raw.split("|")
+        if cursor_sort != sort:
+            raise ValueError("the cursor belongs to another sort order")
+        position = int(value) if sort is FeedSort.TOP else datetime.fromisoformat(value)
+        return position, int(recommendation_id)
     except (binascii.Error, UnicodeDecodeError, ValueError) as error:
         raise InvalidCursor() from error

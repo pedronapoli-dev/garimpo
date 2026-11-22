@@ -1,18 +1,24 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { client } from '@/api/client';
 import { VALID_TEXT, makeRecommendation } from '@/test-utils/fixtures';
 import { createTestQueryClient, failure, ok, queryWrapper } from '@/test-utils/query';
+import { signInAs, signOutForTest } from '@/test-utils/session';
 
 import { CreateScreen } from './create-screen';
 
 const mockPush = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock('expo-router', () => ({
+  Link: ({ children }: { children: ReactNode }) => children,
+  useRouter: () => ({ push: mockPush }),
+}));
 jest.mock('@/api/client', () => ({ client: { POST: jest.fn() } }));
 
 const POST = client.POST as jest.Mock;
 
+beforeEach(() => signInAs());
 afterEach(() => jest.resetAllMocks());
 
 function renderScreen() {
@@ -81,4 +87,12 @@ it('offers the existing recommendation on a duplicate', async () => {
 
   expect(screen.getByText('This artist and title were already recommended.')).toBeOnTheScreen();
   expect(mockPush).toHaveBeenCalledWith('/recommendations/3');
+});
+
+it('asks a signed-out user to log in', async () => {
+  signOutForTest();
+  await renderScreen();
+
+  expect(screen.getByText('Log in to recommend music.')).toBeOnTheScreen();
+  expect(screen.queryByLabelText('Artist')).toBeNull();
 });

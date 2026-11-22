@@ -1,10 +1,12 @@
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated, Any, Self
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     StringConstraints,
     field_validator,
@@ -65,6 +67,11 @@ def _empty_to_none(title: str | None) -> str | None:
     return title or None
 
 
+class FeedSort(StrEnum):
+    NEWEST = "newest"
+    TOP = "top"
+
+
 class RecommendationCreate(BaseModel):
     type: RecommendationType
     artist: Artist
@@ -118,6 +125,11 @@ class RecommendationOut(BaseModel):
     author: AuthorOut
     created_at: UtcDatetime
     updated_at: UtcDatetime
+    vote_count: int
+    voted_by_me: bool
+    saved_by_me: bool
+    # Rule 6: true after 3 reports. Lists leave it out; the detail still opens.
+    hidden: bool
 
     @field_validator("genres", mode="before")
     @classmethod
@@ -131,11 +143,88 @@ class RecommendationPage(BaseModel):
     next_cursor: str | None
 
 
+class ReportIn(BaseModel):
+    reason: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+    ]
+
+
+class ReportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    reason: str
+    created_at: UtcDatetime
+
+
+class VoteOut(BaseModel):
+    """The new vote state, so the app can reconcile its optimistic update."""
+
+    vote_count: int
+    voted_by_me: bool
+
+
+class SaveOut(BaseModel):
+    saved_by_me: bool
+
+
+class UserProfileOut(BaseModel):
+    """A curator's public profile (FR7). Their recommendations come from the feed."""
+
+    id: int
+    display_name: str
+    created_at: UtcDatetime
+    recommendation_count: int
+
+
 class TagOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
+
+
+Email = Annotated[EmailStr, AfterValidator(str.lower)]
+DisplayName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)
+]
+# Argon2 has no input limit; the maximum only stops absurd payloads.
+Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+
+class SignupIn(BaseModel):
+    invite_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    email: Email
+    display_name: DisplayName
+    password: Password
+
+
+class LoginIn(BaseModel):
+    email: Email
+    # No length rule on login: a wrong password is just a wrong password.
+    password: str
+
+
+class CurrentUserOut(BaseModel):
+    """The logged-in user, including the private email."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    display_name: str
+
+
+class SessionOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: CurrentUserOut
+
+
+class InviteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
 
 
 class ErrorOut(BaseModel):

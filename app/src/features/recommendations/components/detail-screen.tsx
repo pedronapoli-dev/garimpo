@@ -1,18 +1,23 @@
-import { Stack } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
+import { Button } from '@/components/button';
 import { Chip } from '@/components/chip';
 import { ScreenMessage } from '@/components/screen-message';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useSession } from '@/stores/session';
 
 import { TYPE_LABELS, formatDate, headline } from '../format';
-import { useRecommendation } from '../queries';
+import { useDeleteRecommendation, useRecommendation } from '../queries';
+import { SaveButton } from './save-button';
+import { VoteButton } from './vote-button';
 
 export function DetailScreen({ id }: { id: number }) {
   const query = useRecommendation(id);
+  const userId = useSession((state) => state.user?.id);
 
   if (query.isPending) {
     return <ActivityIndicator style={styles.loading} />;
@@ -32,6 +37,13 @@ export function DetailScreen({ id }: { id: number }) {
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ title: TYPE_LABELS[recommendation.type] }} />
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+        {recommendation.hidden ? (
+          <ThemedView type="backgroundElement" style={styles.notice}>
+            <ThemedText type="small">
+              Hidden from the feed after 3 reports, until a maintainer reviews it.
+            </ThemedText>
+          </ThemedView>
+        ) : null}
         <ThemedText type="title" style={styles.headline}>
           {headline(recommendation)}
         </ThemedText>
@@ -39,6 +51,9 @@ export function DetailScreen({ id }: { id: number }) {
           {recommendation.genres.map((genre) => (
             <Chip key={genre} label={genre} />
           ))}
+        </View>
+        <View style={styles.row}>
+          <VoteButton recommendation={recommendation} />
         </View>
         <ThemedText type="smallBold" themeColor="textSecondary">
           Why listen
@@ -48,12 +63,66 @@ export function DetailScreen({ id }: { id: number }) {
           Recommended by {recommendation.author.display_name} on{' '}
           {formatDate(recommendation.created_at)}
         </ThemedText>
+        <SaveButton recommendation={recommendation} />
+        {recommendation.author.id === userId ? (
+          <AuthorActions id={recommendation.id} />
+        ) : (
+          <ReportLink id={recommendation.id} />
+        )}
       </ScrollView>
     </ThemedView>
   );
 }
 
+function ReportLink({ id }: { id: number }) {
+  const router = useRouter();
+  return (
+    <Button
+      title="Report"
+      variant="secondary"
+      onPress={() => router.push(`/recommendations/${id}/report`)}
+    />
+  );
+}
+
+/** Rule 5: only the author sees these; the API enforces it again. */
+function AuthorActions({ id }: { id: number }) {
+  const router = useRouter();
+  const remove = useDeleteRecommendation(id);
+
+  function confirmDelete() {
+    Alert.alert('Delete this recommendation?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => remove.mutate(undefined, { onSuccess: () => router.back() }),
+      },
+    ]);
+  }
+
+  return (
+    <View style={styles.actions}>
+      <Button
+        title="Edit"
+        variant="secondary"
+        onPress={() => router.push(`/recommendations/${id}/edit`)}
+      />
+      <Button
+        title="Delete"
+        variant="secondary"
+        onPress={confirmDelete}
+        loading={remove.isPending}
+      />
+      {remove.isError ? <ThemedText>{errorMessage(remove.error)}</ThemedText> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  actions: { gap: Spacing.two, marginTop: Spacing.three },
+  row: { flexDirection: 'row' },
+  notice: { padding: Spacing.three, borderRadius: Spacing.two },
   container: { flex: 1 },
   loading: { marginTop: Spacing.five },
   content: { padding: Spacing.four, gap: Spacing.three },

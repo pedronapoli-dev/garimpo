@@ -10,10 +10,13 @@ Always run from inside `api/` and always through `uv run`. Never use `pip instal
 - Service coverage (from slice 2 step 4 on): `uv run pytest --cov`; fails below 100% on `app/services`
 - Lint: `uv run ruff check .`
 - Format: `uv run ruff format .`
+- Typecheck: `uv run pyright` (the same checker and mode as Pylance in the editor)
 - Local server: `uv run fastapi dev main.py` (docs at http://127.0.0.1:8000/docs)
 - New dependency: `uv add <package>`; dev-only: `uv add --dev <package>`
+- First invite (sign-up is invite-only): `uv run python -m app.cli create-invite`
+- JWT secret: set `GARIMPO_JWT_SECRET` anywhere other than local development (see `app/settings.py`)
 
-A step is done only when tests, lint and format all pass.
+A step is done only when tests, typecheck, lint and format all pass.
 
 ## Layout
 
@@ -25,6 +28,8 @@ api/
     models.py          tables (SQLAlchemy)
     schemas.py         API input and output (Pydantic)
     dependencies.py    SessionDep and CurrentUser for routes
+    settings.py        configuration read from the environment
+    cli.py             management commands
     normalization.py   normalize_key for rule 7 keys and tag names
     routers/           one file per resource; HTTP only, no business rules
     services/          business rules; unaware of HTTP
