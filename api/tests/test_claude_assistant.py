@@ -298,6 +298,15 @@ def test_review_does_not_stream_text_written_before_a_tool_call() -> None:
     assert text == "Clear."
 
 
+def test_review_starts_a_new_parser_after_a_tool_call() -> None:
+    # Unfinished JSON before the tool call must not swallow the real answer.
+    first = turn(text='{"feedback":"', stop_reason="tool_use", tool_id="t")
+    items = run(ScriptedClient(first, turn()))
+
+    text = "".join(item.text for item in items if isinstance(item, FeedbackDelta))
+    assert text == "Clear."
+
+
 @pytest.mark.parametrize("stop_reason", ["refusal", "max_tokens"])
 def test_review_turns_an_unfinished_answer_into_unavailable(stop_reason: str) -> None:
     with pytest.raises(AssistUnavailable):
