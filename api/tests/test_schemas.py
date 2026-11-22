@@ -147,6 +147,9 @@ def test_out_from_orm_returns_genre_names_and_utc_timestamps() -> None:
         "author": {"id": 1, "display_name": "Pedro"},
         "created_at": naive,
         "updated_at": naive,
+        "vote_count": 0,
+        "voted_by_me": False,
+        "saved_by_me": False,
     }
 
     out = RecommendationOut.model_validate(source)

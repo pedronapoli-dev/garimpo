@@ -41,6 +41,13 @@ export default function RootLayout() {
               md="add_circle"
             />
           </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="saved">
+            <NativeTabs.Trigger.Label>Saved</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Icon
+              sf={{ default: 'bookmark', selected: 'bookmark.fill' }}
+              md="bookmark"
+            />
+          </NativeTabs.Trigger>
           <NativeTabs.Trigger name="account">
             <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
             <NativeTabs.Trigger.Icon

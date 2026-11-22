@@ -78,3 +78,19 @@ class NotAuthor(DomainError):
 
     def __init__(self) -> None:
         super().__init__("Only the author can change this recommendation.")
+
+
+class OwnRecommendation(DomainError):
+    """Rule 4: users cannot vote on their own recommendations."""
+
+    code = "own_recommendation"
+
+    def __init__(self) -> None:
+        super().__init__("You cannot vote on your own recommendation.")
+
+
+class UserNotFound(DomainError):
+    code = "user_not_found"
+
+    def __init__(self, user_id: int) -> None:
+        super().__init__(f"User {user_id} does not exist.")

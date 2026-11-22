@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Recommendation, RecommendationType, Tag, User
-from app.schemas import RecommendationCreate, RecommendationUpdate
+from app.schemas import FeedSort, RecommendationCreate, RecommendationUpdate
 from app.services import recommendations, tags
 from app.services.exceptions import (
     DuplicateRecommendation,
@@ -15,7 +15,13 @@ from app.services.exceptions import (
     NotAuthor,
     RecommendationNotFound,
 )
-from tests.conftest import VALID_TEXT, make_recommendation, make_user
+from tests.conftest import (
+    VALID_TEXT,
+    make_recommendation,
+    make_save,
+    make_user,
+    make_vote,
+)
 
 
 def new_recommendation(**overrides: Any) -> RecommendationCreate:
@@ -44,7 +50,7 @@ def test_create_persists_recommendation_with_keys_and_tags(
     assert stored.artist == "Arthur  VEROCAI"
     assert stored.artist_key == "arthur verocai"
     assert stored.title_key == "arthur verocai"
-    assert [tag.name for tag in stored.tags] == ["mpb", "jazz"]
+    assert [tag.name for tag in stored.tags] == ["jazz", "mpb"]
 
 
 def test_create_artist_stores_empty_title_key(session: Session, curator: User) -> None:
@@ -250,7 +256,7 @@ def test_update_changes_only_sent_fields(session: Session, curator: User) -> Non
 
     assert updated.text == new_text
     assert updated.artist == "Arthur Verocai"
-    assert [tag.name for tag in updated.tags] == ["mpb", "jazz"]
+    assert [tag.name for tag in updated.tags] == ["jazz", "mpb"]
 
 
 def test_update_artist_recomputes_keys(session: Session, curator: User) -> None:
@@ -278,7 +284,7 @@ def test_update_replaces_genres(session: Session, curator: User) -> None:
         session, curator, created.id, update(genres=["Soul", "jazz"])
     )
 
-    assert [tag.name for tag in updated.tags] == ["soul", "jazz"]
+    assert [tag.name for tag in updated.tags] == ["jazz", "soul"]
 
 
 def test_update_sets_updated_at(session: Session, curator: User) -> None:
@@ -426,3 +432,110 @@ def test_delete_by_other_user_raises_not_author(
         recommendations.delete_recommendation(session, other, created.id)
 
     assert session.get(Recommendation, created.id) is not None
+
+
+# Viewer state, sorting and filters (slice 5)
+
+
+def test_viewer_fields_for_anonymous_reader(session: Session, curator: User) -> None:
+    recommendation = make_recommendation(session, curator)
+    make_vote(session, make_user(session, email="voter@example.com"), recommendation)
+
+    loaded = recommendations.get_recommendation(session, recommendation.id)
+
+    assert (loaded.vote_count, loaded.voted_by_me, loaded.saved_by_me) == (
+        1,
+        False,
+        False,
+    )
+
+
+def test_viewer_fields_reflect_own_vote_and_save(
+    session: Session, curator: User
+) -> None:
+    recommendation = make_recommendation(session, curator)
+    viewer = make_user(session, email="viewer@example.com")
+    make_vote(session, viewer, recommendation)
+    make_save(session, viewer, recommendation)
+
+    loaded = recommendations.get_recommendation(
+        session, recommendation.id, viewer=viewer
+    )
+
+    assert (loaded.vote_count, loaded.voted_by_me, loaded.saved_by_me) == (
+        1,
+        True,
+        True,
+    )
+
+
+def test_list_top_sorts_by_votes_then_newest(session: Session, curator: User) -> None:
+    feed = make_feed(session, curator, 4)
+    voters = [make_user(session, email=f"v{index}@example.com") for index in range(3)]
+    for voter in voters:
+        make_vote(session, voter, feed[1])
+    make_vote(session, voters[0], feed[2])
+
+    items, _ = recommendations.list_recommendations(session, sort=FeedSort.TOP)
+
+    assert [item.id for item in items] == [
+        feed[1].id,
+        feed[2].id,
+        feed[3].id,
+        feed[0].id,
+    ]
+    assert [item.vote_count for item in items] == [3, 1, 0, 0]
+
+
+def test_list_top_pages_without_gaps_or_repeats(
+    session: Session, curator: User
+) -> None:
+    feed = make_feed(session, curator, 7)
+    voter = make_user(session, email="voter@example.com")
+    for recommendation in feed[::2]:
+        make_vote(session, voter, recommendation)
+    expected, _ = recommendations.list_recommendations(session, sort=FeedSort.TOP)
+    seen: list[int] = []
+    cursor = None
+
+    for _ in range(4):
+        items, cursor = recommendations.list_recommendations(
+            session, sort=FeedSort.TOP, cursor=cursor, limit=3
+        )
+        seen += [item.id for item in items]
+        if cursor is None:
+            break
+
+    assert seen == [item.id for item in expected]
+
+
+def test_cursor_from_other_sort_raises(session: Session, curator: User) -> None:
+    make_feed(session, curator, 3)
+    _, cursor = recommendations.list_recommendations(session, limit=1)
+
+    with pytest.raises(InvalidCursor):
+        recommendations.list_recommendations(session, sort=FeedSort.TOP, cursor=cursor)
+
+
+def test_list_filters_by_author(session: Session, curator: User) -> None:
+    make_feed(session, curator, 2)
+    other = make_user(session, email="other@example.com")
+    theirs = make_recommendation(session, other, title="Theirs", title_key="theirs")
+
+    items, _ = recommendations.list_recommendations(session, author_id=other.id)
+
+    assert [item.id for item in items] == [theirs.id]
+
+
+def test_list_saved_by_returns_only_saved(session: Session, curator: User) -> None:
+    feed = make_feed(session, curator, 3)
+    reader = make_user(session, email="reader@example.com")
+    make_save(session, reader, feed[0])
+    make_save(session, curator, feed[1])
+
+    items, _ = recommendations.list_recommendations(
+        session, viewer=reader, saved_by=reader
+    )
+
+    assert [item.id for item in items] == [feed[0].id]
+    assert items[0].saved_by_me is True

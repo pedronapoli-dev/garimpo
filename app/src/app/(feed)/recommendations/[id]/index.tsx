@@ -1,4 +1,4 @@
 import { DetailScreen } from '@/features/recommendations/components/detail-screen';
-import { withRecommendationId } from '@/features/recommendations/components/recommendation-route';
+import { withRouteId } from '@/features/recommendations/components/recommendation-route';
 
-export default withRecommendationId(DetailScreen);
+export default withRouteId(DetailScreen, 'Recommendation not found');

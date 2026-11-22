@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
@@ -17,11 +18,14 @@ export function AccountScreen() {
   if (user === null) {
     return <SignInPrompt message="Log in to recommend music and invite other curators." />;
   }
-  return <SignedInAccount displayName={user.display_name} email={user.email} />;
+  return <SignedInAccount id={user.id} displayName={user.display_name} email={user.email} />;
 }
 
-function SignedInAccount({ displayName, email }: { displayName: string; email: string }) {
+type SignedInAccountProps = { id: number; displayName: string; email: string };
+
+function SignedInAccount({ id, displayName, email }: SignedInAccountProps) {
   const theme = useTheme();
+  const router = useRouter();
   const invite = useCreateInvite();
 
   return (
@@ -61,6 +65,11 @@ function SignedInAccount({ displayName, email }: { displayName: string; email: s
           />
         </View>
 
+        <Button
+          title="My recommendations"
+          variant="secondary"
+          onPress={() => router.navigate(`/users/${id}`)}
+        />
         <Button title="Log out" variant="secondary" onPress={() => void logOut()} />
       </ScrollView>
     </ThemedView>

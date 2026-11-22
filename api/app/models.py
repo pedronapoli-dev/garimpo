@@ -17,7 +17,13 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects import sqlite
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+    query_expression,
+    relationship,
+)
 
 # Predictable constraint names. Alembic needs them to alter tables in SQLite.
 NAMING_CONVENTION = {
@@ -63,6 +69,34 @@ recommendation_tags = Table(
     ),
     Column("tag_id", ForeignKey("tags.id", ondelete="RESTRICT"), primary_key=True),
 )
+
+
+class Vote(Base):
+    """Rule 4: the composite key allows one vote per user per recommendation."""
+
+    __tablename__ = "votes"
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), primary_key=True
+    )
+    # Indexed on its own: vote counts look votes up by recommendation, and the
+    # primary key index starts with user_id.
+    recommendation_id: Mapped[int] = mapped_column(
+        ForeignKey("recommendations.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+
+
+class Save(Base):
+    """Saved to listen later (FR6)."""
+
+    __tablename__ = "saves"
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), primary_key=True
+    )
+    recommendation_id: Mapped[int] = mapped_column(
+        ForeignKey("recommendations.id", ondelete="CASCADE"), primary_key=True
+    )
 
 
 class User(Base):
@@ -122,7 +156,15 @@ class Recommendation(Base):
         Timestamp, server_default=func.now(), onupdate=func.now()
     )
     author: Mapped["User"] = relationship(back_populates="recommendations")
-    tags: Mapped[list["Tag"]] = relationship(secondary=recommendation_tags)
+    # The join table has no position column, so genres are always alphabetical.
+    tags: Mapped[list["Tag"]] = relationship(
+        secondary=recommendation_tags, order_by="Tag.name"
+    )
+    # Not columns: each query fills them in with with_expression(), computed in
+    # SQL for the user making the request (see services/recommendations.py).
+    vote_count: Mapped[int] = query_expression()
+    voted_by_me: Mapped[bool] = query_expression()
+    saved_by_me: Mapped[bool] = query_expression()
     __table_args__ = (
         UniqueConstraint("type", "artist_key", "title_key"),
         CheckConstraint("length(text) BETWEEN 80 AND 1000", name="text_length"),
