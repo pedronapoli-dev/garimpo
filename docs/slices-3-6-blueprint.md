@@ -23,7 +23,7 @@ slice-6  45b3557  Add reports: three reports hide a recommendation    (API)
          955d2db  Document the slices 3 to 6 implementation blueprint
          39667e3  Fix the type errors Pylance reports in models and services
          6ee41f9  Test the rules that mutation testing showed were unguarded (API)
-         (next)   Test the app behaviours that mutation testing showed were unguarded
+         a8bd29b  Test the app behaviours that mutation testing showed were unguarded
 ```
 
 From slice 4 on, each slice has one API commit, then one app commit. The app commit includes the regenerated `schema.d.ts`, so every commit passes CI's contract check.
