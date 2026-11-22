@@ -90,6 +90,9 @@ def test_openapi_documents_the_stream_events(anonymous_client: TestClient) -> No
     review = spec["paths"]["/assist/review"]["post"]
     assert review["operationId"] == "reviewDraft"
     assert "text/event-stream" in review["responses"]["200"]["content"]
+    # Errors happen before the stream starts, so they are plain JSON.
+    for status_code in ("401", "422", "503"):
+        assert list(review["responses"][status_code]["content"]) == ["application/json"]
     assert {"FeedbackDelta", "AssistDone", "AssistFailed"} <= set(
         spec["components"]["schemas"]
     )

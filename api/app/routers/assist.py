@@ -4,7 +4,7 @@ from fastapi import APIRouter, status
 from fastapi.sse import EventSourceResponse
 
 from app.dependencies import Assistant, CurrentUser, OptionalAssistant, SessionDep
-from app.routers.responses import error_responses
+from app.routers.responses import json_error_responses
 from app.schemas import AssistEvent, AssistIn, AssistStatusOut
 from app.services import assist as service
 
@@ -20,7 +20,7 @@ def get_assist_status(assistant: OptionalAssistant) -> AssistStatusOut:
 @router.post(
     "/review",
     response_class=EventSourceResponse,
-    responses=error_responses(
+    responses=json_error_responses(
         status.HTTP_401_UNAUTHORIZED, status.HTTP_503_SERVICE_UNAVAILABLE, 422
     ),
 )
