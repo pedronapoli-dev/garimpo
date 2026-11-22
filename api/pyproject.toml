@@ -55,7 +55,7 @@ options = "format REVISION_SCRIPT_FILENAME"
 
 [tool.ruff.lint.isort]
 # Editors that run ruff from the repository root cannot detect these on their own.
-known-first-party = ["app", "main", "migrations"]
+known-first-party = ["app", "evals", "main", "migrations"]
 
 [tool.pyright]
 # The same checker and mode as Pylance in .vscode/settings.json, so CI fails on
@@ -63,4 +63,4 @@ known-first-party = ["app", "main", "migrations"]
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
-include = ["app", "main.py", "migrations", "tests"]
+include = ["app", "evals", "main.py", "migrations", "tests"]
