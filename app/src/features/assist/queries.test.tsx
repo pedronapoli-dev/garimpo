@@ -131,6 +131,8 @@ describe('useAssistReview', () => {
 
     expect(result.current.status).toBe('error');
     expect(result.current.error).toMatch(/stopped before it finished/);
+    // What streamed before the stop stays on screen.
+    expect(result.current.feedback).toBe('Say');
   });
 
   it('cancel aborts the request and resets the state', async () => {
