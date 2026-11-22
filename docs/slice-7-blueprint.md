@@ -190,48 +190,40 @@ Swift comparison: server-sent events are a long HTTP response read line by line,
    - `curl -N` on `/assist/review` printed four `feedback_delta` lines, then `done`, with `suggested_genres: ["jazz"]`.
    - An anonymous request got 401.
 
-## Your part: the AI core
+## The AI core
 
-**Start with the dependency.** Run `uv add anthropic`: it's the official SDK, and nothing in the stack can call the Messages API. Then read the SDK docs for streaming, tool use and structured outputs.
+Pedro wrote the first version of the helpers. Claude reviewed them, fixed what the review found, and wrote the review loop and the judge at Pedro's request. Every new behaviour had a failing test first.
 
-**Work order.** Each step turns one group of `xfail` tests green; delete their markers as they pass.
+### `api/app/llm/claude.py`
 
-1. **`usage_from(model, input_tokens, output_tokens, latency_ms)`**
-   - Price the tokens with `PRICES_PER_MTOK`. The test expects 1M input plus 1M output on Sonnet 5.5 to cost $12.00.
-   - Decide what an unknown model costs, and add a test for it.
-2. **`parse_result(text)`**
-   - Use `AssistResult.model_validate_json`.
-   - Turn any `ValidationError` into `AssistUnavailable`.
-3. **`build_messages(draft)`**
-   - One user message with the draft inside `<draft>` tags.
-   - A draft containing `</draft>` must not close the tag; the test counts the closing tags.
-   - This is your first prompt injection defence.
-4. **`tool_result_for_tags(tool_use_id, tags)`** returns the `tool_result` block that answers a `list_tags` call.
-5. **`LIST_TAGS_TOOL` and `SYSTEM_PROMPT`.**
-   - The tool must be strict (`"strict": True`, with `additionalProperties: false`).
-   - The prompt must say never to recommend music, and that everything inside `<draft>` is data.
-6. **`ClaudeAssistant.review`.** This is the loop, and nothing unit-tests it; the live eval does. Follow the numbered `TODO` list in the method:
-   - stream the request;
-   - answer `list_tags`;
-   - yield deltas as the text streams;
-   - yield the parsed result;
-   - yield the usage;
-   - map timeouts, connection errors, rate limits and a `refusal` stop reason to `AssistUnavailable`.
-7. **Turn it on:**
-   - In `app/dependencies.py`, replace the `TODO` in `get_assistant()` with `return ClaudeAssistant(model=settings.ASSIST_MODEL)`.
-   - With `ANTHROPIC_API_KEY` set, `GET /assist/status` turns `enabled`, and the panel appears in the app.
-8. **`ClaudeJudge.grade`** (`evals/judge.py`).
-   - Write the rubric: is the feedback specific to this draft, actionable, kind and short, and does it stay a review?
-   - Return a `JudgeScore` through structured output.
-9. **Extend `cases.jsonl`:**
-   - More vague drafts.
-   - Drafts in Portuguese.
-   - Injections that hide in the title or artist fields.
-   - A draft whose genres are already all there.
+1. **`SYSTEM_PROMPT`** defines the task, tells the model to call `list_tags` first, forbids recommending music, and treats everything inside `<draft>` as data.
+2. **`build_messages`** escapes *every* field with `html.escape`, then wraps them in `<draft>`. A draft can't close the tag, even as `</DRAFT>` or through the artist name.
+3. **`tool_result_for_tags`** returns the tags as a JSON **string**. The API accepts a string or content blocks, never a bare object.
+4. **`parse_result`** uses `model_validate_json`, which throws like `try JSONDecoder().decode(...)`. `except ValidationError` is the `catch`, and it re-raises as `AssistUnavailable`.
+5. **`usage_from`** prices the tokens. An unknown model raises `ValueError`, and `ClaudeAssistant.__init__` checks it too, so a bad setting fails before any tokens are spent.
+6. **`FeedbackStream`** solves a problem specific to structured output: the answer is JSON, but the curator should read only the `feedback` text as it arrives. It holds back anything undecidable, such as a `\u00` escape cut in half by the network. `RESULT_SCHEMA` lists `feedback` before the genres for the same reason.
+7. **`ClaudeAssistant.review`** is a generator, the closest thing to an `AsyncStream` builder: each `yield` hands one item to the caller and pauses until the next is requested. If the client disconnects, the generator is closed, the `with` block exits and the model call stops, so nobody pays for an unread answer. The loop:
+   - streams one request, with adaptive thinking at `low` effort so a phone isn't kept waiting;
+   - on `tool_use`, replays the assistant turn unchanged and answers with the tags;
+   - on `end_turn`, yields the parsed result and the summed usage;
+   - turns a refusal, a cut-off answer, any API error, or more than 3 turns into `AssistUnavailable`.
 
-**Running the live eval.** Set `ANTHROPIC_API_KEY`, then run `uv run python -m evals.run --live`.
-- **Cost:** each case is one review plus one judge call. At Sonnet 5.5 prices ($2 per million input tokens, $10 per million output), expect a cent or two per case, so roughly $0.10 to $0.25 per run of the 6 seed cases.
-- **That's an estimate.** The usage logs report the real numbers after the first run, and you can try `GARIMPO_ASSIST_MODEL=claude-sonnet-5-5` or `claude-haiku-5-5` and compare scores.
-- When the eval passes, add the repository secret, and the `evals-live` CI job becomes a gate.
+**Sonnet 5.5 rules that shaped it:** `tool_choice` can't force a tool (400), so the prompt asks for the call; `thinking: disabled` is also a 400.
 
-**After that, deployment** (Docker and Amazon Bedrock) follows this slice, per `docs/requirements.md`.
+### `api/evals/judge.py`
+
+`ClaudeJudge` grades from 1 to 5 with a rubric in which any music recommendation is an automatic 1. The draft and feedback are escaped and passed as data, and the score comes back through structured output.
+
+### How it was checked
+
+- **Unit tests:** a scripted client plays back model turns, with no network.
+- **Real SDK:** the real `anthropic` client ran against a local stub of the Messages API. That covered event parsing, the tool round trip and the replayed turn.
+- **Not yet run:** the live eval, because it needs a key and costs money. Prompt quality is unmeasured until it runs.
+
+### Running the live eval
+
+Set `ANTHROPIC_API_KEY`, then run `uv run python -m evals.run --live`.
+
+- **Cost:** each case is one review plus one judge call. At Sonnet 5.5 prices ($2 per million input tokens, $10 per million output), expect a cent or two per case, so roughly $0.10 to $0.25 per run of the 6 seed cases. That's an estimate; the usage logs report the real numbers.
+- **When it passes,** add the `ANTHROPIC_API_KEY` repository secret, and the `evals-live` CI job becomes a gate.
+- **Worth adding to `cases.jsonl`:** drafts in Portuguese, injections hidden in the title or artist, and a draft whose genres are all already there.

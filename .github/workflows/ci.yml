@@ -40,8 +40,8 @@ jobs:
       - run: npm test -- --ci
 
   # Curator assist evals against Claude (slice 7). They cost money, so they run
-  # only when the ANTHROPIC_API_KEY repository secret is set; add it once
-  # app/llm/claude.py is implemented. Forks never receive secrets.
+  # only when the ANTHROPIC_API_KEY repository secret is set. Forks never
+  # receive secrets.
   evals-live:
     runs-on: ubuntu-latest
     env:
