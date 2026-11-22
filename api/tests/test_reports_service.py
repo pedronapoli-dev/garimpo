@@ -55,6 +55,20 @@ def test_third_report_hides_from_every_list(session: Session, curator: User) -> 
     assert users.get_profile(session, curator.id).recommendation_count == 1
 
 
+def test_reports_on_other_recommendations_do_not_count(
+    session: Session, curator: User
+) -> None:
+    reported = make_recommendation(session, curator)
+    other = make_recommendation(session, curator, title="Other", title_key="other")
+    report_by(session, 2, reported)
+
+    reports.report(
+        session, make_user(session, email="third@example.com"), other.id, REASON
+    )
+
+    assert session.get_one(Recommendation, other.id).hidden is False
+
+
 def test_hidden_recommendation_detail_still_loads(
     session: Session, curator: User
 ) -> None:

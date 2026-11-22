@@ -2,11 +2,11 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import User, Vote
+from app.models import Save, User, Vote
 from app.schemas import VoteOut
 from app.services import saves, votes
 from app.services.exceptions import OwnRecommendation, RecommendationNotFound
-from tests.conftest import make_recommendation, make_user
+from tests.conftest import make_recommendation, make_save, make_user, make_vote
 
 
 def count_votes(session: Session) -> int:
@@ -65,6 +65,17 @@ def test_unvote_removes_vote(session: Session, curator: User) -> None:
     )
 
 
+def test_unvote_keeps_other_users_votes(session: Session, curator: User) -> None:
+    recommendation = make_recommendation(session, curator)
+    voter = make_user(session, email="voter@example.com")
+    make_vote(session, voter, recommendation)
+    make_vote(session, make_user(session, email="other@example.com"), recommendation)
+
+    assert votes.unvote(session, voter, recommendation.id) == VoteOut(
+        vote_count=1, voted_by_me=False
+    )
+
+
 def test_unvote_without_vote_is_a_no_op(session: Session, curator: User) -> None:
     recommendation = make_recommendation(session, curator)
 
@@ -89,3 +100,15 @@ def test_save_and_unsave_are_idempotent(session: Session, curator: User) -> None
     assert saves.save(session, curator, recommendation.id).saved_by_me is True
     assert saves.unsave(session, curator, recommendation.id).saved_by_me is False
     assert saves.unsave(session, curator, recommendation.id).saved_by_me is False
+
+
+def test_unsave_keeps_other_users_saves(session: Session, curator: User) -> None:
+    recommendation = make_recommendation(session, curator)
+    other = make_user(session, email="other@example.com")
+    make_save(session, curator, recommendation)
+    make_save(session, other, recommendation)
+
+    saves.unsave(session, curator, recommendation.id)
+
+    remaining = session.scalars(select(Save.user_id)).all()
+    assert remaining == [other.id]

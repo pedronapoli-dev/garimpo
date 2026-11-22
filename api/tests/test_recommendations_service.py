@@ -469,6 +469,26 @@ def test_viewer_fields_reflect_own_vote_and_save(
     )
 
 
+def test_viewer_fields_ignore_other_users_vote_and_save(
+    session: Session, curator: User
+) -> None:
+    recommendation = make_recommendation(session, curator)
+    other = make_user(session, email="other@example.com")
+    make_vote(session, other, recommendation)
+    make_save(session, other, recommendation)
+    viewer = make_user(session, email="viewer@example.com")
+
+    loaded = recommendations.get_recommendation(
+        session, recommendation.id, viewer=viewer
+    )
+
+    assert (loaded.vote_count, loaded.voted_by_me, loaded.saved_by_me) == (
+        1,
+        False,
+        False,
+    )
+
+
 def test_list_top_sorts_by_votes_then_newest(session: Session, curator: User) -> None:
     feed = make_feed(session, curator, 4)
     voters = [make_user(session, email=f"v{index}@example.com") for index in range(3)]
@@ -515,6 +535,17 @@ def test_cursor_from_other_sort_raises(session: Session, curator: User) -> None:
 
     with pytest.raises(InvalidCursor):
         recommendations.list_recommendations(session, sort=FeedSort.TOP, cursor=cursor)
+
+
+def test_cursor_labeled_with_other_sort_raises_even_if_it_parses(
+    session: Session,
+) -> None:
+    # A valid "newest" position (a date) under the "top" label: only the sort
+    # check rejects it, because the date alone would parse.
+    cursor = recommendations._encode_cursor(FeedSort.TOP, datetime(2026, 11, 21), 1)
+
+    with pytest.raises(InvalidCursor):
+        recommendations.list_recommendations(session, cursor=cursor)
 
 
 def test_list_filters_by_author(session: Session, curator: User) -> None:
