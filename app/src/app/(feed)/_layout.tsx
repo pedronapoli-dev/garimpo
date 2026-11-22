@@ -6,7 +6,11 @@ export default function FeedLayout() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ title: 'Garimpo', headerLargeTitle: true }} />
-      <Stack.Screen name="recommendations/[id]" options={{ title: '' }} />
+      <Stack.Screen name="recommendations/[id]/index" options={{ title: '' }} />
+      <Stack.Screen
+        name="recommendations/[id]/edit"
+        options={{ title: 'Edit', presentation: 'modal' }}
+      />
     </Stack>
   );
 }

@@ -1,8 +1,9 @@
-import { VALID_TEXT } from '@/test-utils/fixtures';
+import { VALID_TEXT, makeRecommendation } from '@/test-utils/fixtures';
 
 import {
   type RecommendationForm,
   emptyForm,
+  formFromRecommendation,
   parseGenres,
   textCounter,
   toCreatePayload,
@@ -97,5 +98,17 @@ describe('toCreatePayload', () => {
 describe('emptyForm', () => {
   it('starts as an album with empty fields', () => {
     expect(emptyForm()).toEqual({ type: 'album', artist: '', title: '', genres: '', text: '' });
+  });
+});
+
+describe('formFromRecommendation', () => {
+  it('fills the form with the stored values', () => {
+    expect(formFromRecommendation(makeRecommendation({ type: 'artist', title: null }))).toEqual({
+      type: 'artist',
+      artist: 'Arthur Verocai',
+      title: '',
+      genres: 'mpb, jazz',
+      text: VALID_TEXT,
+    });
   });
 });

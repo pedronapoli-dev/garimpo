@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import create_db_engine, get_session
 from app.models import Base, Recommendation, RecommendationType, User
+from app.services import auth
 from app.services.users import DEV_CURATOR_EMAIL
 from main import app
 
@@ -33,7 +34,9 @@ def curator(session: Session) -> User:
 
 
 @pytest.fixture
-def client(session: Session, curator: User) -> Iterator[TestClient]:
+def anonymous_client(session: Session) -> Iterator[TestClient]:
+    """A client without a token, sharing the test's database session."""
+
     def override_get_session() -> Iterator[Session]:
         yield session
 
@@ -41,6 +44,17 @@ def client(session: Session, curator: User) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(anonymous_client: TestClient, curator: User) -> TestClient:
+    """A client logged in as the curator."""
+    anonymous_client.headers.update(auth_headers(curator))
+    return anonymous_client
+
+
+def auth_headers(user: User) -> dict[str, str]:
+    return {"Authorization": f"Bearer {auth.create_access_token(user)}"}
 
 
 def make_user(session: Session, **overrides: Any) -> User:

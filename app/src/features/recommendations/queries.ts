@@ -4,7 +4,7 @@ import { client } from '@/api/client';
 import { unwrap } from '@/api/errors';
 
 import { mergePages } from './cache';
-import type { Recommendation, RecommendationCreate } from './types';
+import type { Recommendation, RecommendationCreate, RecommendationUpdate } from './types';
 
 /** One place for cache keys, so invalidation cannot drift from the queries. */
 export const recommendationKeys = {
@@ -62,6 +62,42 @@ export function useCreateRecommendation() {
         queryClient.invalidateQueries({ queryKey: recommendationKeys.feeds() }),
         queryClient.invalidateQueries({ queryKey: tagKeys.all }),
       ]);
+    },
+  });
+}
+
+export function useUpdateRecommendation(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: RecommendationUpdate) =>
+      unwrap(
+        await client.PATCH('/recommendations/{recommendation_id}', {
+          params: { path: { recommendation_id: id } },
+          body,
+        }),
+      ),
+    onSuccess: (updated: Recommendation) => {
+      queryClient.setQueryData(recommendationKeys.detail(id), updated);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: recommendationKeys.feeds() }),
+        queryClient.invalidateQueries({ queryKey: tagKeys.all }),
+      ]);
+    },
+  });
+}
+
+export function useDeleteRecommendation(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await client.DELETE('/recommendations/{recommendation_id}', {
+          params: { path: { recommendation_id: id } },
+        }),
+      ),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: recommendationKeys.detail(id) });
+      return queryClient.invalidateQueries({ queryKey: recommendationKeys.feeds() });
     },
   });
 }

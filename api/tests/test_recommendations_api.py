@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models import Tag, User
 from app.services.exceptions import DomainError
 from main import STATUS_BY_ERROR, app
-from tests.conftest import VALID_TEXT, make_recommendation
+from tests.conftest import VALID_TEXT, auth_headers, make_recommendation, make_user
 
 
 def payload(**overrides: Any) -> dict[str, Any]:
@@ -85,6 +85,9 @@ def test_openapi_operation_ids_are_camel_case() -> None:
 
     assert operation_ids == {
         "health",
+        "signup",
+        "login",
+        "createInvite",
         "createRecommendation",
         "listRecommendations",
         "getRecommendation",
@@ -256,6 +259,73 @@ def test_delete_returns_204_and_removes_it(client: TestClient) -> None:
 
 def test_delete_missing_returns_404(client: TestClient) -> None:
     assert client.delete("/recommendations/999").status_code == 404
+
+
+# Auth and rule 5
+
+
+def test_create_without_token_returns_401_error_out(
+    anonymous_client: TestClient,
+) -> None:
+    response = anonymous_client.post("/recommendations", json=payload())
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "code": "not_authenticated",
+        "message": "Log in to do this.",
+    }
+
+
+def test_create_with_invalid_token_returns_401(anonymous_client: TestClient) -> None:
+    response = anonymous_client.post(
+        "/recommendations",
+        json=payload(),
+        headers={"Authorization": "Bearer not-a-jwt"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_read_endpoints_need_no_token(anonymous_client: TestClient) -> None:
+    assert anonymous_client.get("/recommendations").status_code == 200
+    assert anonymous_client.get("/tags").status_code == 200
+
+
+def test_create_sets_logged_in_user_as_author(
+    anonymous_client: TestClient, session: Session
+) -> None:
+    other = make_user(session, email="other@example.com", display_name="Other")
+
+    response = anonymous_client.post(
+        "/recommendations", json=payload(), headers=auth_headers(other)
+    )
+
+    assert response.json()["author"] == {"id": other.id, "display_name": "Other"}
+
+
+def test_update_by_other_user_returns_403(client: TestClient, session: Session) -> None:
+    created = client.post("/recommendations", json=payload()).json()
+    other = make_user(session, email="other@example.com")
+
+    response = client.patch(
+        f"/recommendations/{created['id']}",
+        json={"genres": ["soul"]},
+        headers=auth_headers(other),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "not_author"
+
+
+def test_delete_by_other_user_returns_403(client: TestClient, session: Session) -> None:
+    created = client.post("/recommendations", json=payload()).json()
+    other = make_user(session, email="other@example.com")
+
+    response = client.delete(
+        f"/recommendations/{created['id']}", headers=auth_headers(other)
+    )
+
+    assert response.status_code == 403
 
 
 # GET /tags

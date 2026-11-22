@@ -12,6 +12,7 @@ from app.services.exceptions import (
     DuplicateRecommendation,
     InvalidCursor,
     InvalidRecommendation,
+    NotAuthor,
     RecommendationNotFound,
 )
 
@@ -41,10 +42,10 @@ def create_recommendation(
 
 
 def update_recommendation(
-    session: Session, recommendation_id: int, data: RecommendationUpdate
+    session: Session, user: User, recommendation_id: int, data: RecommendationUpdate
 ) -> Recommendation:
     """Partial update: only the fields present in the request body change."""
-    recommendation = get_recommendation(session, recommendation_id)
+    recommendation = _get_own_recommendation(session, user, recommendation_id)
     changes = data.model_dump(exclude_unset=True)
     genres = changes.pop("genres", None)
 
@@ -75,9 +76,19 @@ def update_recommendation(
     return recommendation
 
 
-def delete_recommendation(session: Session, recommendation_id: int) -> None:
-    session.delete(get_recommendation(session, recommendation_id))
+def delete_recommendation(session: Session, user: User, recommendation_id: int) -> None:
+    session.delete(_get_own_recommendation(session, user, recommendation_id))
     session.commit()
+
+
+def _get_own_recommendation(
+    session: Session, user: User, recommendation_id: int
+) -> Recommendation:
+    """Rule 5: only the author can edit or delete."""
+    recommendation = get_recommendation(session, recommendation_id)
+    if recommendation.author_id != user.id:
+        raise NotAuthor()
+    return recommendation
 
 
 def _ensure_unique(

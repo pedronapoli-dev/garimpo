@@ -18,7 +18,9 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    responses=error_responses(status.HTTP_409_CONFLICT, 422),
+    responses=error_responses(
+        status.HTTP_401_UNAUTHORIZED, status.HTTP_409_CONFLICT, 422
+    ),
 )
 def create_recommendation(
     data: RecommendationCreate, session: SessionDep, author: CurrentUser
@@ -56,22 +58,38 @@ def get_recommendation(
 
 @router.patch(
     "/{recommendation_id}",
-    responses=error_responses(status.HTTP_404_NOT_FOUND, status.HTTP_409_CONFLICT, 422),
+    responses=error_responses(
+        status.HTTP_401_UNAUTHORIZED,
+        status.HTTP_403_FORBIDDEN,
+        status.HTTP_404_NOT_FOUND,
+        status.HTTP_409_CONFLICT,
+        422,
+    ),
 )
 def update_recommendation(
-    recommendation_id: int, data: RecommendationUpdate, session: SessionDep
+    recommendation_id: int,
+    data: RecommendationUpdate,
+    session: SessionDep,
+    user: CurrentUser,
 ) -> RecommendationOut:
-    # Rule 5 (only the author edits) arrives with auth in slice 4.
-    recommendation = service.update_recommendation(session, recommendation_id, data)
+    recommendation = service.update_recommendation(
+        session, user, recommendation_id, data
+    )
     return RecommendationOut.model_validate(recommendation)
 
 
 @router.delete(
     "/{recommendation_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=error_responses(status.HTTP_404_NOT_FOUND, 422),
+    responses=error_responses(
+        status.HTTP_401_UNAUTHORIZED,
+        status.HTTP_403_FORBIDDEN,
+        status.HTTP_404_NOT_FOUND,
+        422,
+    ),
 )
-def delete_recommendation(recommendation_id: int, session: SessionDep) -> Response:
-    # Rule 5 (only the author deletes) arrives with auth in slice 4.
-    service.delete_recommendation(session, recommendation_id)
+def delete_recommendation(
+    recommendation_id: int, session: SessionDep, user: CurrentUser
+) -> Response:
+    service.delete_recommendation(session, user, recommendation_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
