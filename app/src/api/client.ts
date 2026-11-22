@@ -23,7 +23,8 @@ export const authMiddleware: Middleware = {
     if (response.status === 401 && request.headers.has('Authorization')) {
       await useSession.getState().signOut();
     }
-    return response;
+    // Returns nothing on purpose. openapi-fetch treats a returned value as a
+    // replacement and requires a global Response, which Expo's fetch is not.
   },
 };
 

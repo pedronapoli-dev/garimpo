@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
 import { Button } from '@/components/button';
 import { TextField } from '@/components/text-field';
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -38,7 +39,7 @@ export function SignupScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScreenScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <ThemedText themeColor="textSecondary">
           Garimpo is invite-only. Ask a curator for a code.
         </ThemedText>
@@ -79,7 +80,7 @@ export function SignupScreen() {
           <ThemedText style={{ color: theme.danger }}>{errorMessage(signup.error)}</ThemedText>
         ) : null}
         <Button title="Create account" onPress={submit} loading={signup.isPending} />
-      </ScrollView>
+      </ScreenScrollView>
     </ThemedView>
   );
 }

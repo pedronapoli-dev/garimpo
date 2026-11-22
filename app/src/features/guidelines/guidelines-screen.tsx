@@ -1,5 +1,6 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -31,14 +32,14 @@ const SECTIONS: { title: string; body: string }[] = [
 export function GuidelinesScreen() {
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+      <ScreenScrollView contentContainerStyle={styles.content}>
         {SECTIONS.map((section) => (
           <View key={section.title} style={styles.section}>
             <ThemedText type="smallBold">{section.title}</ThemedText>
             <ThemedText>{section.body}</ThemedText>
           </View>
         ))}
-      </ScrollView>
+      </ScreenScrollView>
     </ThemedView>
   );
 }

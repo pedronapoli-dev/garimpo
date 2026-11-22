@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { type ReactNode, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ApiError, errorMessage } from '@/api/errors';
 import { Button } from '@/components/button';
 import { TextField } from '@/components/text-field';
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -62,73 +63,66 @@ export function RecommendationEditor({
 
   return (
     <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          contentInsetAdjustmentBehavior="automatic"
-          keyboardShouldPersistTaps="handled">
-          <TypePicker value={form.type} onChange={(type) => update('type', type)} />
+      <ScreenScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <TypePicker value={form.type} onChange={(type) => update('type', type)} />
+        <TextField
+          label="Artist"
+          value={form.artist}
+          onChangeText={(value) => update('artist', value)}
+          error={errors.artist}
+          autoCapitalize="words"
+        />
+        {form.type !== 'artist' ? (
           <TextField
-            label="Artist"
-            value={form.artist}
-            onChangeText={(value) => update('artist', value)}
-            error={errors.artist}
-            autoCapitalize="words"
+            label={form.type === 'album' ? 'Album title' : 'Track title'}
+            value={form.title}
+            onChangeText={(value) => update('title', value)}
+            error={errors.title}
           />
-          {form.type !== 'artist' ? (
-            <TextField
-              label={form.type === 'album' ? 'Album title' : 'Track title'}
-              value={form.title}
-              onChangeText={(value) => update('title', value)}
-              error={errors.title}
-            />
-          ) : null}
-          <TextField
-            label="Genres"
-            value={form.genres}
-            onChangeText={(value) => update('genres', value)}
-            error={errors.genres}
-            hint="1 to 5, separated by commas"
-            autoCapitalize="none"
-            placeholder="mpb, jazz"
-          />
-          <TextField
-            label="Why listen"
-            value={form.text}
-            onChangeText={(value) => update('text', value)}
-            error={errors.text}
-            hint={counter.label}
-            multiline
-            style={styles.textArea}
-            textAlignVertical="top"
-          />
-          <AssistPanel
-            form={form}
-            onAddGenres={(genres) => {
-              setForm((current) => addGenres(current, genres));
-              onChange();
-            }}
-          />
+        ) : null}
+        <TextField
+          label="Genres"
+          value={form.genres}
+          onChangeText={(value) => update('genres', value)}
+          error={errors.genres}
+          hint="1 to 5, separated by commas"
+          autoCapitalize="none"
+          placeholder="mpb, jazz"
+        />
+        <TextField
+          label="Why listen"
+          value={form.text}
+          onChangeText={(value) => update('text', value)}
+          error={errors.text}
+          hint={counter.label}
+          multiline
+          style={styles.textArea}
+          textAlignVertical="top"
+        />
+        <AssistPanel
+          form={form}
+          onAddGenres={(genres) => {
+            setForm((current) => addGenres(current, genres));
+            onChange();
+          }}
+        />
 
-          {error ? (
-            <View style={[styles.banner, { borderColor: theme.danger }]}>
-              <ThemedText>{errorMessage(error)}</ThemedText>
-              {duplicateId != null ? (
-                <Button
-                  title="Open the existing recommendation"
-                  variant="secondary"
-                  onPress={() => router.push(`/recommendations/${duplicateId}`)}
-                />
-              ) : null}
-            </View>
-          ) : null}
+        {error ? (
+          <View style={[styles.banner, { borderColor: theme.danger }]}>
+            <ThemedText>{errorMessage(error)}</ThemedText>
+            {duplicateId != null ? (
+              <Button
+                title="Open the existing recommendation"
+                variant="secondary"
+                onPress={() => router.push(`/recommendations/${duplicateId}`)}
+              />
+            ) : null}
+          </View>
+        ) : null}
 
-          <Button title={submitTitle} onPress={submit} loading={pending} />
-          {footer}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <Button title={submitTitle} onPress={submit} loading={pending} />
+        {footer}
+      </ScreenScrollView>
     </ThemedView>
   );
 }

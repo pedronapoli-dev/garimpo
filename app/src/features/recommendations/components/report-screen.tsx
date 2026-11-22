@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
 import { Button } from '@/components/button';
 import { TextField } from '@/components/text-field';
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -32,21 +33,21 @@ function ReportForm({ id }: { id: number }) {
   if (report.isSuccess) {
     return (
       <ThemedView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScreenScrollView contentContainerStyle={styles.content}>
           <ThemedText type="subtitle">Thanks for the report</ThemedText>
           <ThemedText themeColor="textSecondary">
             After 3 reports from different people, a recommendation is hidden until a maintainer
             reviews it.
           </ThemedText>
           <Button title="Done" onPress={() => router.back()} />
-        </ScrollView>
+        </ScreenScrollView>
       </ThemedView>
     );
   }
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScreenScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <ThemedText themeColor="textSecondary">
           Report what breaks the community guidelines, not music you dislike.
         </ThemedText>
@@ -72,7 +73,7 @@ function ReportForm({ id }: { id: number }) {
           disabled={trimmed.length === 0}
           loading={report.isPending}
         />
-      </ScrollView>
+      </ScreenScrollView>
     </ThemedView>
   );
 }

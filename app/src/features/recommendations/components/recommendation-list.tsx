@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
-import { ScreenMessage } from '@/components/screen-message';
+import { ListMessage } from '@/components/screen-message';
 import { Spacing } from '@/constants/theme';
 
 import type { Recommendation } from '../types';
@@ -25,21 +25,23 @@ export function RecommendationList({
   errorTitle,
   header,
 }: RecommendationListProps) {
-  if (query.isPending) {
-    return <ActivityIndicator style={styles.loading} />;
-  }
-  if (query.isError) {
-    return (
-      <ScreenMessage
-        title={errorTitle}
-        message={errorMessage(query.error)}
-        onRetry={() => query.refetch()}
-      />
-    );
-  }
+  // Loading and errors render inside the list, so the header stays on screen
+  // and iOS keeps insetting the content below the navigation bar.
+  const placeholder = query.isPending ? (
+    <ActivityIndicator style={styles.loading} />
+  ) : query.isError ? (
+    <ListMessage
+      title={errorTitle}
+      message={errorMessage(query.error)}
+      onRetry={() => query.refetch()}
+    />
+  ) : (
+    <ListMessage title={emptyTitle} message={emptyMessage} />
+  );
+
   return (
     <FlatList
-      data={query.data}
+      data={query.data ?? []}
       keyExtractor={(item) => String(item.id)}
       renderItem={({ item }) => <RecommendationCard recommendation={item} />}
       ListHeaderComponent={header}
@@ -58,7 +60,7 @@ export function RecommendationList({
         />
       }
       ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator /> : undefined}
-      ListEmptyComponent={<ScreenMessage title={emptyTitle} message={emptyMessage} />}
+      ListEmptyComponent={placeholder}
     />
   );
 }

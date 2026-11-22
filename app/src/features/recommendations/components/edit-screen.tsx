@@ -1,8 +1,7 @@
 import { useRouter } from 'expo-router';
-import { ActivityIndicator } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
-import { ScreenMessage } from '@/components/screen-message';
+import { ScreenLoading, ScreenMessage } from '@/components/screen-message';
 
 import { formFromRecommendation, toCreatePayload } from '../form';
 import { useRecommendation, useUpdateRecommendation } from '../queries';
@@ -13,7 +12,7 @@ export function EditScreen({ id }: { id: number }) {
   const query = useRecommendation(id);
   const update = useUpdateRecommendation(id);
 
-  if (query.isPending) return <ActivityIndicator style={{ marginTop: 32 }} />;
+  if (query.isPending) return <ScreenLoading />;
   if (query.isError) {
     return (
       <ScreenMessage

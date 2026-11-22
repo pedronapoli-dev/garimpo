@@ -1,16 +1,17 @@
-import { StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 
-type ScreenMessageProps = { title: string; message?: string; onRetry?: () => void };
+type MessageProps = { title: string; message?: string; onRetry?: () => void };
 
-/** Full-screen empty or error state. */
-export function ScreenMessage({ title, message, onRetry }: ScreenMessageProps) {
+/** An empty or error message, for a list that already handles the insets. */
+export function ListMessage({ title, message, onRetry }: MessageProps) {
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.message}>
       <ThemedText type="subtitle" style={styles.center}>
         {title}
       </ThemedText>
@@ -20,15 +21,37 @@ export function ScreenMessage({ title, message, onRetry }: ScreenMessageProps) {
         </ThemedText>
       ) : null}
       {onRetry ? <Button title="Try again" variant="secondary" onPress={onRetry} /> : null}
+    </View>
+  );
+}
+
+/** Full-screen empty or error state. */
+export function ScreenMessage(props: MessageProps) {
+  return (
+    <ThemedView style={styles.screen}>
+      <ScreenScrollView contentContainerStyle={styles.centered} alwaysBounceVertical={false}>
+        <ListMessage {...props} />
+      </ScreenScrollView>
+    </ThemedView>
+  );
+}
+
+/** Full-screen loading state. */
+export function ScreenLoading() {
+  return (
+    <ThemedView style={styles.screen}>
+      <ScreenScrollView contentContainerStyle={styles.centered} alwaysBounceVertical={false}>
+        <ActivityIndicator />
+      </ScreenScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  screen: { flex: 1 },
+  centered: { flexGrow: 1, justifyContent: 'center' },
+  message: {
     alignItems: 'center',
-    justifyContent: 'center',
     gap: Spacing.three,
     padding: Spacing.four,
   },

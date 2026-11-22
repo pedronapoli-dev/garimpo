@@ -1,10 +1,11 @@
 import { Stack, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/errors';
 import { Button } from '@/components/button';
 import { Chip } from '@/components/chip';
-import { ScreenMessage } from '@/components/screen-message';
+import { ScreenLoading, ScreenMessage } from '@/components/screen-message';
+import { ScreenScrollView } from '@/components/screen-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -20,7 +21,7 @@ export function DetailScreen({ id }: { id: number }) {
   const userId = useSession((state) => state.user?.id);
 
   if (query.isPending) {
-    return <ActivityIndicator style={styles.loading} />;
+    return <ScreenLoading />;
   }
   if (query.isError) {
     return (
@@ -36,7 +37,7 @@ export function DetailScreen({ id }: { id: number }) {
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ title: TYPE_LABELS[recommendation.type] }} />
-      <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+      <ScreenScrollView contentContainerStyle={styles.content}>
         {recommendation.hidden ? (
           <ThemedView type="backgroundElement" style={styles.notice}>
             <ThemedText type="small">
@@ -69,7 +70,7 @@ export function DetailScreen({ id }: { id: number }) {
         ) : (
           <ReportLink id={recommendation.id} />
         )}
-      </ScrollView>
+      </ScreenScrollView>
     </ThemedView>
   );
 }
@@ -124,7 +125,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   notice: { padding: Spacing.three, borderRadius: Spacing.two },
   container: { flex: 1 },
-  loading: { marginTop: Spacing.five },
   content: { padding: Spacing.four, gap: Spacing.three },
   headline: { fontSize: 32, lineHeight: 38 },
   genres: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
