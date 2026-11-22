@@ -130,3 +130,22 @@ def test_get_assistant_with_a_key_serves_one_shared_claude(
     # One HTTP client for the process, not one per request.
     assert first is second
     _claude_assistant.cache_clear()
+
+
+def test_get_assistant_on_bedrock_needs_no_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(settings, "ASSIST_FAKE", False)
+    monkeypatch.setattr(settings, "ASSIST_HAS_API_KEY", False)
+    monkeypatch.setattr(settings, "ASSIST_PROVIDER", "bedrock")
+    monkeypatch.setattr(settings, "ASSIST_MODEL", "anthropic.claude-sonnet-5-5")
+    _claude_assistant.cache_clear()
+
+    assistant = get_assistant()
+
+    assert isinstance(assistant, ClaudeAssistant)
+    assert assistant.model == "anthropic.claude-sonnet-5-5"
+    _claude_assistant.cache_clear()
