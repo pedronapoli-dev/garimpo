@@ -17,6 +17,7 @@ export function makeRecommendation(overrides: Partial<Recommendation> = {}): Rec
     vote_count: 0,
     voted_by_me: false,
     saved_by_me: false,
+    hidden: false,
     ...overrides,
   };
 }

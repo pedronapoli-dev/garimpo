@@ -1,6 +1,7 @@
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 
+import { ThemedText } from '@/components/themed-text';
 import { SignInPrompt } from '@/features/auth/components/sign-in-prompt';
 import { useSession } from '@/stores/session';
 
@@ -25,6 +26,11 @@ function CreateForm() {
       key={formKey}
       initialForm={emptyForm()}
       submitTitle="Publish"
+      footer={
+        <Link href="/new/guidelines">
+          <ThemedText type="link">Read the community guidelines</ThemedText>
+        </Link>
+      }
       pending={create.isPending}
       error={create.error}
       onChange={() => create.isError && create.reset()}

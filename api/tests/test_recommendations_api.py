@@ -52,7 +52,9 @@ def test_create_returns_201_with_recommendation(client: TestClient) -> None:
         "vote_count",
         "voted_by_me",
         "saved_by_me",
+        "hidden",
     }
+    assert body["hidden"] is False
     assert (body["vote_count"], body["voted_by_me"], body["saved_by_me"]) == (
         0,
         False,
@@ -112,6 +114,7 @@ def test_openapi_operation_ids_are_camel_case() -> None:
         "unvoteRecommendation",
         "saveRecommendation",
         "unsaveRecommendation",
+        "reportRecommendation",
         "listTags",
         "getUser",
         "listMySaves",

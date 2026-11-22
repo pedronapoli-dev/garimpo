@@ -150,6 +150,7 @@ def test_out_from_orm_returns_genre_names_and_utc_timestamps() -> None:
         "vote_count": 0,
         "voted_by_me": False,
         "saved_by_me": False,
+        "hidden": False,
     }
 
     out = RecommendationOut.model_validate(source)

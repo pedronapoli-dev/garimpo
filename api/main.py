@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.routers import auth, invites, recommendations, tags, users, votes
 from app.schemas import ErrorOut
 from app.services.exceptions import (
+    AlreadyReported,
     DomainError,
     DuplicateRecommendation,
     EmailTaken,
@@ -30,6 +31,7 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
     RecommendationNotFound: status.HTTP_404_NOT_FOUND,
     DuplicateRecommendation: status.HTTP_409_CONFLICT,
     EmailTaken: status.HTTP_409_CONFLICT,
+    AlreadyReported: status.HTTP_409_CONFLICT,
     InvalidCursor: 422,
     InvalidRecommendation: 422,
     InvalidInvite: 422,

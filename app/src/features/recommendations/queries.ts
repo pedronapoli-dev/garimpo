@@ -19,7 +19,13 @@ import {
   setVoteState,
   updateInPages,
 } from './cache';
-import type { FeedSort, Recommendation, RecommendationCreate, RecommendationUpdate } from './types';
+import type {
+  FeedSort,
+  Recommendation,
+  RecommendationCreate,
+  RecommendationUpdate,
+  ReportIn,
+} from './types';
 
 export type FeedParams = { sort: FeedSort; genre: string | null; authorId: number | null };
 
@@ -228,5 +234,17 @@ export function useDeleteRecommendation(id: number) {
       queryClient.removeQueries({ queryKey: recommendationKeys.detail(id) });
       return invalidateLists(queryClient);
     },
+  });
+}
+
+export function useReport(id: number) {
+  return useMutation({
+    mutationFn: async (body: ReportIn) =>
+      unwrap(
+        await client.POST('/recommendations/{recommendation_id}/reports', {
+          params: { path: { recommendation_id: id } },
+          body,
+        }),
+      ),
   });
 }

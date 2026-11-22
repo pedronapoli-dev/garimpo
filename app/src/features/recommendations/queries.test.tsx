@@ -10,6 +10,7 @@ import {
   useCreateRecommendation,
   useFeed,
   useRecommendation,
+  useSave,
   useVote,
 } from './queries';
 
@@ -152,6 +153,26 @@ describe('useVote', () => {
     expect(cachedCounts(queryClient)).toEqual([2, 2]);
     expect(
       queryClient.getQueryData<{ voted_by_me: boolean }>(recommendationKeys.detail(5))?.voted_by_me,
+    ).toBe(false);
+  });
+});
+
+describe('useSave', () => {
+  it('rolls back when the request fails', async () => {
+    PUT.mockResolvedValue(failure(500, 'boom'));
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(
+      recommendationKeys.detail(5),
+      makeRecommendation({ id: 5, saved_by_me: false }),
+    );
+    const { result } = await renderHook(() => useSave(5), { wrapper: queryWrapper(queryClient) });
+
+    await act(async () => {
+      await result.current.mutateAsync(true).catch(() => undefined);
+    });
+
+    expect(
+      queryClient.getQueryData<{ saved_by_me: boolean }>(recommendationKeys.detail(5))?.saved_by_me,
     ).toBe(false);
   });
 });

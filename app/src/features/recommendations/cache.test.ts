@@ -75,6 +75,11 @@ describe('applySave', () => {
   it('sets the saved flag', () => {
     expect(applySave(makeRecommendation(), true).saved_by_me).toBe(true);
   });
+
+  it('returns the same object when the state does not change', () => {
+    const recommendation = makeRecommendation({ saved_by_me: true });
+    expect(applySave(recommendation, true)).toBe(recommendation);
+  });
 });
 
 describe('updateInPages', () => {

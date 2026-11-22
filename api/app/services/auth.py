@@ -51,12 +51,14 @@ def signup(session: Session, data: SignupIn) -> User:
         session.flush()
 
         # Conditional UPDATE: of two sign-ups racing for a code, one matches.
-        claimed = session.execute(
+        # RETURNING gives back the code only when the row was claimed.
+        claimed = session.scalar(
             update(Invite)
             .where(Invite.code == data.invite_code, Invite.used_by_id.is_(None))
             .values(used_by_id=user.id, used_at=func.now())
+            .returning(Invite.code)
         )
-        if claimed.rowcount != 1:
+        if claimed is None:
             raise InvalidInvite()
 
     session.commit()

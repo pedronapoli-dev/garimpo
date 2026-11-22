@@ -99,6 +99,21 @@ class Save(Base):
     )
 
 
+class Report(Base):
+    """Rule 6: three reports from different users hide a recommendation."""
+
+    __tablename__ = "reports"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    recommendation_id: Mapped[int] = mapped_column(
+        ForeignKey("recommendations.id", ondelete="CASCADE")
+    )
+    reason: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(Timestamp, server_default=func.now())
+    # One report per user per recommendation, so 3 reports mean 3 people.
+    __table_args__ = (UniqueConstraint("user_id", "recommendation_id"),)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -162,9 +177,11 @@ class Recommendation(Base):
     )
     # Not columns: each query fills them in with with_expression(), computed in
     # SQL for the user making the request (see services/recommendations.py).
-    vote_count: Mapped[int] = query_expression()
-    voted_by_me: Mapped[bool] = query_expression()
-    saved_by_me: Mapped[bool] = query_expression()
+    # None when a query did not fill them in; RecommendationOut rejects None,
+    # so a response built from such an object fails loudly instead of lying.
+    vote_count: Mapped[int | None] = query_expression()
+    voted_by_me: Mapped[bool | None] = query_expression()
+    saved_by_me: Mapped[bool | None] = query_expression()
     __table_args__ = (
         UniqueConstraint("type", "artist_key", "title_key"),
         CheckConstraint("length(text) BETWEEN 80 AND 1000", name="text_length"),
