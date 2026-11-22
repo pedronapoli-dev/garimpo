@@ -13,6 +13,6 @@ ACCESS_TOKEN_TTL = timedelta(days=30)
 # Curator assist (FR12, slice 7). Optional: without a key the app works as the
 # MVP and hides the assist. GARIMPO_ASSIST_FAKE=1 serves the deterministic fake,
 # to work on the app without a key or any cost.
-ASSIST_MODEL = os.environ.get("GARIMPO_ASSIST_MODEL", "claude-opus-5-5")
+ASSIST_MODEL = os.environ.get("GARIMPO_ASSIST_MODEL", "claude-sonnet-5-5")
 ASSIST_HAS_API_KEY = bool(os.environ.get("ANTHROPIC_API_KEY"))
 ASSIST_FAKE = os.environ.get("GARIMPO_ASSIST_FAKE") == "1"

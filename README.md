@@ -53,7 +53,7 @@ The curator assist is off unless the API has a model behind it:
 |---|---|
 | `GARIMPO_ASSIST_FAKE=1` | Serves a deterministic fake, to work on the app without a key or any cost |
 | `ANTHROPIC_API_KEY` | Enables the assist with Claude (once `api/app/llm/claude.py` is implemented) |
-| `GARIMPO_ASSIST_MODEL` | The Claude model, `claude-opus-5-5` by default |
+| `GARIMPO_ASSIST_MODEL` | The Claude model, `claude-sonnet-5-5` by default |
 
 ## Checks
 

@@ -99,7 +99,7 @@ Swift comparison: a savepoint is like a nested transaction in GRDB's `inSavepoin
 ### 4. Settings and dependency (`app/settings.py`, `app/dependencies.py`)
 
 - **Settings:**
-  - `GARIMPO_ASSIST_MODEL` sets the model, `claude-opus-5-5` by default.
+  - `GARIMPO_ASSIST_MODEL` sets the model, `claude-sonnet-5-5` by default.
   - `ANTHROPIC_API_KEY` turns the assist on.
   - `GARIMPO_ASSIST_FAKE=1` serves the fake. Use it to work on the app UI without a key or any cost.
 - **`get_assistant()`** returns the fake, `None` (no key), or, today, `None` even with a key. Your `ClaudeAssistant` replaces that one `TODO` line. It's the same kind of swap as slice 4, where only the body of `get_current_user` changed.
@@ -197,7 +197,7 @@ Swift comparison: server-sent events are a long HTTP response read line by line,
 **Work order.** Each step turns one group of `xfail` tests green; delete their markers as they pass.
 
 1. **`usage_from(model, input_tokens, output_tokens, latency_ms)`**
-   - Price the tokens with `PRICES_PER_MTOK`. The test expects 1M input plus 1M output on Opus 5.5 to cost $24.00.
+   - Price the tokens with `PRICES_PER_MTOK`. The test expects 1M input plus 1M output on Sonnet 5.5 to cost $12.00.
    - Decide what an unknown model costs, and add a test for it.
 2. **`parse_result(text)`**
    - Use `AssistResult.model_validate_json`.
@@ -230,7 +230,7 @@ Swift comparison: server-sent events are a long HTTP response read line by line,
    - A draft whose genres are already all there.
 
 **Running the live eval.** Set `ANTHROPIC_API_KEY`, then run `uv run python -m evals.run --live`.
-- **Cost:** each case is one review plus one judge call. At Opus 5.5 prices ($4 per million input tokens, $20 per million output), expect a few cents per case, so roughly $0.20 to $0.50 per run of the 6 seed cases.
+- **Cost:** each case is one review plus one judge call. At Sonnet 5.5 prices ($2 per million input tokens, $10 per million output), expect a cent or two per case, so roughly $0.10 to $0.25 per run of the 6 seed cases.
 - **That's an estimate.** The usage logs report the real numbers after the first run, and you can try `GARIMPO_ASSIST_MODEL=claude-sonnet-5-5` or `claude-haiku-5-5` and compare scores.
 - When the eval passes, add the repository secret, and the `evals-live` CI job becomes a gate.
 
