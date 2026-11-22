@@ -17,6 +17,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.414",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.17.5",
@@ -55,3 +56,11 @@ options = "format REVISION_SCRIPT_FILENAME"
 [tool.ruff.lint.isort]
 # Editors that run ruff from the repository root cannot detect these on their own.
 known-first-party = ["app", "main", "migrations"]
+
+[tool.pyright]
+# The same checker and mode as Pylance in .vscode/settings.json, so CI fails on
+# what the editor underlines.
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+include = ["app", "main.py", "migrations", "tests"]

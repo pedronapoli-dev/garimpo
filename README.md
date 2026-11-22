@@ -49,7 +49,7 @@ Outside local development, set `GARIMPO_JWT_SECRET` to a long random value.
 ## Checks
 
 ```sh
-cd api && uv run pytest --cov && uv run ruff check . && uv run ruff format --check .
+cd api && uv run pytest --cov && uv run pyright && uv run ruff check . && uv run ruff format --check .
 cd app && npm test && npm run typecheck && npm run lint && npm run format:check
 cd app && npm run generate:api   # after any API change; commit src/api/schema.d.ts
 ```

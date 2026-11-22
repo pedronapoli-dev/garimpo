@@ -251,7 +251,7 @@ The cost is that a test can pass for the wrong reason, and coverage cannot tell:
 
 Each got a test that fails against the mutant (red) and passes on the real code (green). All 76 mutants now fail the suite.
 
-The same audit found a gap in the checks: Pylance in `standard` mode flagged 10 type errors (`query_expression()` fields typed as never `None`, the SQLAlchemy 2.1 `Select` generic, `rowcount` on an untyped result, a possibly unbound variable in a test). Neither ruff nor CI runs a type checker on the API, so they went unnoticed. They are fixed in `39667e3`; the invite claim now uses `UPDATE ... RETURNING` instead of `rowcount`.
+The same audit found a gap in the checks: Pylance in `standard` mode flagged 10 type errors (`query_expression()` fields typed as never `None`, the SQLAlchemy 2.1 `Select` generic, `rowcount` on an untyped result, a possibly unbound variable in a test). Neither ruff nor CI ran a type checker on the API, so they went unnoticed. Pyright, the checker behind Pylance, is now a dev dependency configured in `pyproject.toml` with the same mode, and CI runs `uv run pyright`. They are fixed in `39667e3`; the invite claim now uses `UPDATE ... RETURNING` instead of `rowcount`.
 
 From slice 7 on, the listed layers are written test first: the failing test is run and seen failing before any code.
 
@@ -280,6 +280,7 @@ Revisit any of these if you disagree.
 ```
 cd api
 uv run pytest --cov
+uv run pyright
 uv run alembic upgrade head
 uv run python -m app.cli create-invite
 uv run fastapi dev main.py
