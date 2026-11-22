@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import settings
 from app.db import get_session
+from app.llm.claude import ClaudeAssistant
 from app.llm.fake import FakeAssistant
 from app.llm.protocol import CuratorAssistant
 from app.models import User
@@ -45,15 +47,19 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 
 
+@lru_cache
+def _claude_assistant(model: str) -> ClaudeAssistant:
+    # One instance per process, so requests share its HTTP connections.
+    return ClaudeAssistant(model=model)
+
+
 def get_assistant() -> CuratorAssistant | None:
     """The curator assist, or None when the server has none (FR12 is optional)."""
     if settings.ASSIST_FAKE:
         return FakeAssistant()
     if not settings.ASSIST_HAS_API_KEY:
         return None
-    # TODO(slice 7, Pedro): return ClaudeAssistant(model=settings.ASSIST_MODEL)
-    # once app/llm/claude.py is implemented. Until then a key changes nothing.
-    return None
+    return _claude_assistant(settings.ASSIST_MODEL)
 
 
 def require_assistant(

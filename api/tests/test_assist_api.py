@@ -5,7 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import settings
-from app.dependencies import get_assistant
+from app.dependencies import _claude_assistant, get_assistant
+from app.llm.claude import ClaudeAssistant
 from app.llm.fake import FakeAssistant
 from main import app
 
@@ -111,3 +112,21 @@ def test_get_assistant_serves_the_fake_when_asked(
     monkeypatch.setattr(settings, "ASSIST_FAKE", True)
 
     assert isinstance(get_assistant(), FakeAssistant)
+
+
+def test_get_assistant_with_a_key_serves_one_shared_claude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "ASSIST_FAKE", False)
+    monkeypatch.setattr(settings, "ASSIST_HAS_API_KEY", True)
+    monkeypatch.setattr(settings, "ASSIST_MODEL", "claude-sonnet-5-5")
+    _claude_assistant.cache_clear()
+
+    first, second = get_assistant(), get_assistant()
+
+    assert isinstance(first, ClaudeAssistant)
+    assert first.model == "claude-sonnet-5-5"
+    # One HTTP client for the process, not one per request.
+    assert first is second
+    _claude_assistant.cache_clear()
