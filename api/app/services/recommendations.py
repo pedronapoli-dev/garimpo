@@ -3,6 +3,7 @@ import binascii
 from datetime import datetime
 
 from sqlalchemy import ColumnElement, Select, and_, exists, false, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload, with_expression
 
 from app.models import Recommendation, RecommendationType, Save, Tag, User, Vote
@@ -32,7 +33,7 @@ def create_recommendation(
     _ensure_unique(session, data.type, artist_key, title_key)
 
     recommendation = Recommendation(
-        author=author,
+        author_id=author.id,
         type=data.type,
         artist=data.artist,
         title=data.title,
@@ -41,7 +42,13 @@ def create_recommendation(
         text=data.text,
         tags=_get_or_create_tags(session, data.genres),
     )
-    session.add(recommendation)
+    try:
+        # A savepoint: losing the race undoes only this insert.
+        with session.begin_nested():
+            session.add(recommendation)
+    except IntegrityError:
+        _raise_if_duplicate(session, data.type, artist_key, title_key)
+        raise
     session.commit()
     # Reload with the per-viewer fields (vote_count, voted_by_me, saved_by_me).
     return get_recommendation(session, recommendation.id, viewer=author)
@@ -62,22 +69,29 @@ def update_recommendation(
     except ValueError as error:
         raise InvalidRecommendation(str(error)) from error
 
+    artist_key = normalize_key(changes.get("artist", recommendation.artist))
+    title_key = normalize_key(merged["title"] or "")
     if changes.keys() & {"type", "artist", "title"}:
-        artist_key = normalize_key(changes.get("artist", recommendation.artist))
-        title_key = normalize_key(merged["title"] or "")
         _ensure_unique(
             session, merged["type"], artist_key, title_key, exclude_id=recommendation.id
         )
-        recommendation.artist_key = artist_key
-        recommendation.title_key = title_key
 
-    for field, value in changes.items():
-        setattr(recommendation, field, value)
-    if genres is not None:
-        recommendation.tags = _get_or_create_tags(session, genres)
-    # onupdate only fires when a column changes; a genre-only edit counts too.
-    recommendation.updated_at = func.now()
-
+    try:
+        # A savepoint: losing the race undoes only this update.
+        with session.begin_nested():
+            recommendation.artist_key = artist_key
+            recommendation.title_key = title_key
+            for field, value in changes.items():
+                setattr(recommendation, field, value)
+            if genres is not None:
+                recommendation.tags = _get_or_create_tags(session, genres)
+            # onupdate only fires when a column changes; a genre-only edit counts.
+            recommendation.updated_at = func.now()
+    except IntegrityError:
+        _raise_if_duplicate(
+            session, merged["type"], artist_key, title_key, exclude_id=recommendation_id
+        )
+        raise
     session.commit()
     return get_recommendation(session, recommendation.id, viewer=user)
 
@@ -105,7 +119,24 @@ def _ensure_unique(
     *,
     exclude_id: int | None = None,
 ) -> None:
-    """Rule 7. The unique index also guards it; this check finds the existing id."""
+    """Rule 7, checked first so the usual case never reaches the database error."""
+    _raise_if_duplicate(session, type_, artist_key, title_key, exclude_id=exclude_id)
+
+
+def _raise_if_duplicate(
+    session: Session,
+    type_: RecommendationType,
+    artist_key: str,
+    title_key: str,
+    *,
+    exclude_id: int | None = None,
+) -> None:
+    """Raises DuplicateRecommendation with the existing id, if there is one.
+
+    Also called after an IntegrityError: when two requests pass the check at
+    the same time, the unique index stops the second one, and this lookup
+    tells a rule 7 conflict apart from any other constraint failure.
+    """
     query = select(Recommendation.id).where(
         Recommendation.type == type_,
         Recommendation.artist_key == artist_key,

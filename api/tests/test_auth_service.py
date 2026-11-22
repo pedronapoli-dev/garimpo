@@ -4,6 +4,7 @@ from typing import Any
 import jwt
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Invite, User
@@ -95,6 +96,34 @@ def test_signup_with_taken_email_raises_and_keeps_invite(
         auth.signup(session, signup_data(invite.code, email=taken.email))
 
     assert session.get_one(Invite, invite.code).used_by_id is None
+
+
+def test_signup_losing_the_email_race_raises_and_keeps_invite(
+    session: Session, curator: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    taken = make_user(session, email="taken@example.com")
+    invite = invites.create_invite(session, curator)
+    # Skip the pre-check, as when a concurrent sign-up passed it too.
+    monkeypatch.setattr(auth, "_ensure_email_free", lambda session, email: None)
+
+    with pytest.raises(EmailTaken):
+        auth.signup(session, signup_data(invite.code, email=taken.email))
+
+    assert session.get_one(Invite, invite.code).used_by_id is None
+    assert count_users(session) == 2
+
+
+def test_signup_violating_another_constraint_raises_it(
+    session: Session, curator: User
+) -> None:
+    invite = invites.create_invite(session, curator)
+    # model_construct skips validation, so only the NOT NULL on email stops it.
+    data = SignupIn.model_construct(
+        invite_code=invite.code, email=None, display_name="X", password=PASSWORD
+    )
+
+    with pytest.raises(IntegrityError):
+        auth.signup(session, data)
 
 
 # Login

@@ -266,7 +266,7 @@ Revisit any of these if you disagree.
 5. **Genres are alphabetical** everywhere (see slice 5).
 6. **Hidden recommendations leave every list**, including the reporter's saved list and the author's profile, but their detail still opens.
 7. **Rule 6 can be bypassed by invited accounts:** one person with several accounts could hide a recommendation. Invites limit this; a fix would need moderation tooling.
-8. **Races that return 500 instead of the domain error:** two identical recommendations created at the same instant (rule 7), or two sign-ups with the same email at the same instant. The database constraints still hold; only the status code is wrong.
+8. **Races returned 500 instead of the domain error** when two identical recommendations (rule 7) or two sign-ups with the same email arrived at the same instant. Fixed on the `mvp-hardening` branch: the write runs in a savepoint, and the `IntegrityError` becomes `DuplicateRecommendation` or `EmailTaken` (409) when the conflicting row exists.
 9. **Prettier was added** to the app for formatting (see slice 3, step 1).
 
 ## Things on your machine

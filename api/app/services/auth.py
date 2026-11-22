@@ -4,6 +4,7 @@ import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Invite, User
@@ -36,33 +37,47 @@ def verify_password(password_hash: str, password: str) -> bool:
 
 def signup(session: Session, data: SignupIn) -> User:
     """Rule 1: creates the user and spends the invite, or changes nothing."""
-    if session.scalar(select(User.id).where(User.email == data.email)) is not None:
-        raise EmailTaken()
+    _ensure_email_free(session, data.email)
 
     # A savepoint: if the invite cannot be claimed, the new user is rolled back
     # too, and nothing else pending in the session is touched.
-    with session.begin_nested():
-        user = User(
-            email=data.email,
-            display_name=data.display_name,
-            password_hash=hash_password(data.password),
-        )
-        session.add(user)
-        session.flush()
+    try:
+        with session.begin_nested():
+            user = User(
+                email=data.email,
+                display_name=data.display_name,
+                password_hash=hash_password(data.password),
+            )
+            session.add(user)
+            session.flush()
 
-        # Conditional UPDATE: of two sign-ups racing for a code, one matches.
-        # RETURNING gives back the code only when the row was claimed.
-        claimed = session.scalar(
-            update(Invite)
-            .where(Invite.code == data.invite_code, Invite.used_by_id.is_(None))
-            .values(used_by_id=user.id, used_at=func.now())
-            .returning(Invite.code)
-        )
-        if claimed is None:
-            raise InvalidInvite()
+            # Conditional UPDATE: of two sign-ups racing for a code, one matches.
+            # RETURNING gives back the code only when the row was claimed.
+            claimed = session.scalar(
+                update(Invite)
+                .where(Invite.code == data.invite_code, Invite.used_by_id.is_(None))
+                .values(used_by_id=user.id, used_at=func.now())
+                .returning(Invite.code)
+            )
+            if claimed is None:
+                raise InvalidInvite()
+    except IntegrityError:
+        # A concurrent sign-up took the email after the check above.
+        if _email_exists(session, data.email):
+            raise EmailTaken() from None
+        raise
 
     session.commit()
     return user
+
+
+def _ensure_email_free(session: Session, email: str) -> None:
+    if _email_exists(session, email):
+        raise EmailTaken()
+
+
+def _email_exists(session: Session, email: str) -> bool:
+    return session.scalar(select(User.id).where(User.email == email)) is not None
 
 
 def login(session: Session, data: LoginIn) -> User:
