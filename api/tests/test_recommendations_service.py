@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Recommendation, RecommendationType, Tag, User
@@ -108,6 +109,42 @@ def test_create_same_artist_twice_raises_duplicate(
     recommendations.create_recommendation(session, curator, data)
 
     with pytest.raises(DuplicateRecommendation):
+        recommendations.create_recommendation(session, curator, data)
+
+
+def lose_the_race(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip the rule 7 pre-check, as when a concurrent request passed it too."""
+    monkeypatch.setattr(recommendations, "_ensure_unique", lambda *args, **kwargs: None)
+
+
+def test_create_losing_the_race_raises_duplicate_with_existing_id(
+    session: Session, curator: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    lose_the_race(monkeypatch)
+
+    with pytest.raises(DuplicateRecommendation) as error:
+        recommendations.create_recommendation(session, curator, new_recommendation())
+
+    assert error.value.existing_id == first.id
+    assert session.scalar(select(func.count(Recommendation.id))) == 1
+
+
+def test_create_violating_another_constraint_raises_it(
+    session: Session, curator: User
+) -> None:
+    # model_construct skips validation, so only the text_length CHECK stops it.
+    data = RecommendationCreate.model_construct(
+        type=RecommendationType.ARTIST,
+        artist="Azymuth",
+        title=None,
+        genres=["jazz"],
+        text="too short",
+    )
+
+    with pytest.raises(IntegrityError):
         recommendations.create_recommendation(session, curator, data)
 
 
@@ -317,6 +354,40 @@ def test_update_to_existing_artist_and_title_raises_duplicate(
         )
 
     assert error.value.existing_id == first.id
+
+
+def test_update_losing_the_race_raises_duplicate_and_keeps_title(
+    session: Session, curator: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    second = recommendations.create_recommendation(
+        session, curator, new_recommendation(title="Saudade")
+    )
+    lose_the_race(monkeypatch)
+
+    with pytest.raises(DuplicateRecommendation) as error:
+        recommendations.update_recommendation(
+            session, curator, second.id, update(title="Arthur Verocai")
+        )
+
+    assert error.value.existing_id == first.id
+    session.expire_all()
+    assert session.get_one(Recommendation, second.id).title == "Saudade"
+
+
+def test_update_violating_another_constraint_raises_it(
+    session: Session, curator: User
+) -> None:
+    created = recommendations.create_recommendation(
+        session, curator, new_recommendation()
+    )
+    # model_construct skips validation, so only the text_length CHECK stops it.
+    data = RecommendationUpdate.model_construct(_fields_set={"text"}, text="short")
+
+    with pytest.raises(IntegrityError):
+        recommendations.update_recommendation(session, curator, created.id, data)
 
 
 def test_update_keeping_own_artist_and_title_persists(
