@@ -9,6 +9,7 @@ from html import escape
 from typing import Any
 
 import anthropic
+from anthropic.lib.bedrock import AnthropicBedrockMantle
 from pydantic import ValidationError
 
 from app.llm.protocol import AssistItem, AssistUnavailable, AssistUsage
@@ -123,9 +124,19 @@ def usage_from(
 
 def _prices(model: str) -> tuple[float, float]:
     try:
-        return PRICES_PER_MTOK[model]
+        # Bedrock ids are the same models with an "anthropic." prefix.
+        return PRICES_PER_MTOK[model.removeprefix("anthropic.")]
     except KeyError:
         raise ValueError(f"No price for the assist model {model!r}.") from None
+
+
+def create_client(provider: str) -> Any:
+    """The SDK client for a provider. Bedrock signs with the AWS credentials."""
+    if provider == "anthropic":
+        return anthropic.Anthropic(timeout=20, max_retries=1)
+    if provider == "bedrock":
+        return AnthropicBedrockMantle(timeout=20, max_retries=1)
+    raise ValueError(f"Unknown assist provider {provider!r}.")
 
 
 class FeedbackStream:
@@ -194,7 +205,7 @@ class ClaudeAssistant:
         # A bad GARIMPO_ASSIST_MODEL fails here, before any tokens are spent.
         _prices(model)
         self.model = model
-        self.client: Any = client or anthropic.Anthropic(timeout=20, max_retries=1)
+        self.client: Any = client or create_client("anthropic")
 
     def review(self, draft: AssistIn, tags: Sequence[str]) -> Iterator[AssistItem]:
         started = time.monotonic()

@@ -81,12 +81,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.live:
-        from app.llm.claude import ClaudeAssistant
-        from app.settings import ASSIST_MODEL
+        from app.llm.claude import ClaudeAssistant, create_client
+        from app.settings import ASSIST_MODEL, ASSIST_PROVIDER
         from evals.judge import ClaudeJudge
 
-        assistant: CuratorAssistant = ClaudeAssistant(model=ASSIST_MODEL)
-        judge: Judge = ClaudeJudge(model=ASSIST_MODEL)
+        client = create_client(ASSIST_PROVIDER)
+        assistant: CuratorAssistant = ClaudeAssistant(ASSIST_MODEL, client=client)
+        judge: Judge = ClaudeJudge(ASSIST_MODEL, client=client)
     else:
         from app.llm.fake import FakeAssistant
         from evals.judge import FakeJudge

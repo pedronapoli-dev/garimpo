@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
+from app import settings
 from app.routers import assist, auth, invites, recommendations, tags, users, votes
 from app.schemas import ErrorOut
 from app.services.exceptions import (
@@ -22,6 +23,8 @@ from app.services.exceptions import (
     RecommendationNotFound,
     UserNotFound,
 )
+
+settings.check_production(settings.ENVIRONMENT, settings.JWT_SECRET)
 
 STATUS_BY_ERROR: dict[type[DomainError], int] = {
     NotAuthenticated: status.HTTP_401_UNAUTHORIZED,

@@ -59,6 +59,26 @@ jobs:
       - run: uv run python -m evals.run --live
         if: env.ANTHROPIC_API_KEY != ''
 
+  # The production image builds, migrates an empty database and serves, and
+  # refuses to start with the public development secret.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t garimpo-api api
+      - name: Refuses the default secret
+        run: "! docker run --rm garimpo-api"
+      - name: Serves /health
+        run: |
+          docker run -d --name api -p 8000:8000 \
+            -e GARIMPO_JWT_SECRET="$(openssl rand -hex 32)" garimpo-api
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health && exit 0
+            sleep 1
+          done
+          docker logs api
+          exit 1
+
   # The app's types are generated from the API. Fail when they are stale.
   contract:
     runs-on: ubuntu-latest

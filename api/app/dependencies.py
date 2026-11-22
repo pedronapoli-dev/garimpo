@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import settings
 from app.db import get_session
-from app.llm.claude import ClaudeAssistant
+from app.llm.claude import ClaudeAssistant, create_client
 from app.llm.fake import FakeAssistant
 from app.llm.protocol import CuratorAssistant
 from app.models import User
@@ -48,18 +48,19 @@ OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 
 
 @lru_cache
-def _claude_assistant(model: str) -> ClaudeAssistant:
+def _claude_assistant(model: str, provider: str) -> ClaudeAssistant:
     # One instance per process, so requests share its HTTP connections.
-    return ClaudeAssistant(model=model)
+    return ClaudeAssistant(model=model, client=create_client(provider))
 
 
 def get_assistant() -> CuratorAssistant | None:
     """The curator assist, or None when the server has none (FR12 is optional)."""
     if settings.ASSIST_FAKE:
         return FakeAssistant()
-    if not settings.ASSIST_HAS_API_KEY:
+    # Bedrock authenticates with the server's AWS credentials instead of a key.
+    if settings.ASSIST_PROVIDER == "anthropic" and not settings.ASSIST_HAS_API_KEY:
         return None
-    return _claude_assistant(settings.ASSIST_MODEL)
+    return _claude_assistant(settings.ASSIST_MODEL, settings.ASSIST_PROVIDER)
 
 
 def require_assistant(

@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 
 from sqlalchemy import Engine, create_engine, event
@@ -5,7 +6,12 @@ from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry, Pool
 
-DATABASE_URL = "sqlite:///./garimpo.db"
+
+def database_url() -> str:
+    return os.environ.get("GARIMPO_DATABASE_URL", "sqlite:///./garimpo.db")
+
+
+DATABASE_URL = database_url()
 
 
 def create_db_engine(url: str, *, poolclass: type[Pool] | None = None) -> Engine:
