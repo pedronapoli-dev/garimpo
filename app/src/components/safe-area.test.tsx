@@ -6,11 +6,12 @@ import { ScreenMessage } from '@/components/screen-message';
 import { LoginScreen } from '@/features/auth/components/login-screen';
 import { SignInPrompt } from '@/features/auth/components/sign-in-prompt';
 import { SignupScreen } from '@/features/auth/components/signup-screen';
+import { CreateScreen } from '@/features/recommendations/components/create-screen';
 import { FeedScreen } from '@/features/recommendations/components/feed-screen';
 import { ReportScreen } from '@/features/recommendations/components/report-screen';
 import { makePage } from '@/test-utils/fixtures';
 import { createTestQueryClient, failure, ok, queryWrapper } from '@/test-utils/query';
-import { isInsideInsetScrollView } from '@/test-utils/safe-area';
+import { adjustsForKeyboard, isInsideInsetScrollView } from '@/test-utils/safe-area';
 import { signInAs, signOutForTest } from '@/test-utils/session';
 
 jest.mock('expo-router', () => ({
@@ -91,6 +92,16 @@ describe('every other screen is inset', () => {
   it('signup', async () => {
     await renderScreen(<SignupScreen />);
     expect(isInsideInsetScrollView(screen.getByText('Email'))).toBe(true);
+  });
+
+  it('the recommendation editor, using the native keyboard inset', async () => {
+    signInAs();
+    GET.mockReturnValue(new Promise(() => undefined));
+    await renderScreen(<CreateScreen />);
+
+    const field = screen.getByText('Why listen');
+    expect(isInsideInsetScrollView(field)).toBe(true);
+    expect(adjustsForKeyboard(field)).toBe(true);
   });
 
   it('report', async () => {

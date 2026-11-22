@@ -12,3 +12,13 @@ export function isInsideInsetScrollView(element: unknown): boolean {
   }
   return false;
 }
+
+/** Whether the scroll view around the element keeps focused fields above the keyboard. */
+export function adjustsForKeyboard(element: unknown): boolean {
+  let node = element as Node | null;
+  while (node !== null) {
+    if (node.props?.automaticallyAdjustKeyboardInsets === true) return true;
+    node = node.parent;
+  }
+  return false;
+}
