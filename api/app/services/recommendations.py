@@ -135,7 +135,7 @@ _vote_count = (
 )
 
 
-def _select(viewer: User | None) -> Select[tuple[Recommendation]]:
+def _select(viewer: User | None) -> Select[Recommendation]:
     """A SELECT of recommendations with author, tags and the viewer's state."""
     if viewer is None:
         voted_by_me: ColumnElement[bool] = false()

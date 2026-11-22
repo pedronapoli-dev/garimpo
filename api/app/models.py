@@ -177,9 +177,11 @@ class Recommendation(Base):
     )
     # Not columns: each query fills them in with with_expression(), computed in
     # SQL for the user making the request (see services/recommendations.py).
-    vote_count: Mapped[int] = query_expression()
-    voted_by_me: Mapped[bool] = query_expression()
-    saved_by_me: Mapped[bool] = query_expression()
+    # None when a query did not fill them in; RecommendationOut rejects None,
+    # so a response built from such an object fails loudly instead of lying.
+    vote_count: Mapped[int | None] = query_expression()
+    voted_by_me: Mapped[bool | None] = query_expression()
+    saved_by_me: Mapped[bool | None] = query_expression()
     __table_args__ = (
         UniqueConstraint("type", "artist_key", "title_key"),
         CheckConstraint("length(text) BETWEEN 80 AND 1000", name="text_length"),

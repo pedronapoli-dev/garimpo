@@ -38,11 +38,12 @@ def test_voting_twice_keeps_one_vote(session: Session, curator: User) -> None:
 
 def test_votes_from_different_users_add_up(session: Session, curator: User) -> None:
     recommendation = make_recommendation(session, curator)
-    for index in range(3):
-        voter = make_user(session, email=f"voter{index}@example.com")
-        state = votes.vote(session, voter, recommendation.id)
+    voters = [
+        make_user(session, email=f"voter{index}@example.com") for index in range(3)
+    ]
+    states = [votes.vote(session, voter, recommendation.id) for voter in voters]
 
-    assert state.vote_count == 3
+    assert [state.vote_count for state in states] == [1, 2, 3]
 
 
 def test_vote_on_own_recommendation_raises(session: Session, curator: User) -> None:
