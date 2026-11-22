@@ -2,7 +2,7 @@
 
 Written on 2026-11-21, when slice 6 was finished. It records what each slice built, why, and which concepts it uses, compared with Swift and iOS. `docs/requirements.md` still takes precedence. The slice 2 equivalent is `docs/slice-2-blueprint.md`.
 
-Final state: the MVP (FR1 to FR9) is complete. The API has 187 tests and 100% coverage on `app/services`. The app has 87 Jest tests. Lint, format and typecheck are clean on both sides.
+Final state: the MVP (FR1 to FR9) is complete. The API has 192 tests and 100% coverage on `app/services`. The app has 91 Jest tests. Lint, format and typecheck are clean on both sides, including Pylance's type checker on the API. Read "Testing process" before trusting the tests: they were not written test first.
 
 ## Branches and commits
 
@@ -20,6 +20,10 @@ slice-5  f7ea2de  Add votes, saves, profiles and the top feed         (API)
 slice-6  45b3557  Add reports: three reports hide a recommendation    (API)
          154fef0  Add reports and community guidelines to the app
          6e51249  Add the README and mark slice 6 as done
+         955d2db  Document the slices 3 to 6 implementation blueprint
+         39667e3  Fix the type errors Pylance reports in models and services
+         6ee41f9  Test the rules that mutation testing showed were unguarded (API)
+         (next)   Test the app behaviours that mutation testing showed were unguarded
 ```
 
 From slice 4 on, each slice has one API commit, then one app commit. The app commit includes the regenerated `schema.d.ts`, so every commit passes CI's contract check.
@@ -68,8 +72,8 @@ Swift comparison: `schema.d.ts` plays the role of `Codable` models generated fro
   - `(feed)/index` is the feed; `(feed)/recommendations/[id]` is the detail.
   - `new/index` is the create form.
 - **`features/recommendations/`:**
-  - `cache.ts` has `mergePages()`, which flattens infinite pages and drops duplicates (TDD).
-  - `form.ts` has `parseGenres`, `validateForm`, `textCounter` and `toCreatePayload` (TDD). It mirrors rule 2 only for feedback while typing.
+  - `cache.ts` has `mergePages()`, which flattens infinite pages and drops duplicates.
+  - `form.ts` has `parseGenres`, `validateForm`, `textCounter` and `toCreatePayload`. It mirrors rule 2 only for feedback while typing.
   - `queries.ts` has `useFeed` (`useInfiniteQuery` with the cursor as `pageParam`), `useRecommendation`, `useTags` and `useCreateRecommendation`. The mutation seeds the detail cache and invalidates the feeds.
   - **Screens:**
     - The feed has genre chips, pull to refresh and infinite scroll.
@@ -177,7 +181,7 @@ Swift comparison: `schema.d.ts` plays the role of `Codable` models generated fro
 
 ### App (`8aaffc0`)
 
-- **`cache.ts`** (TDD):
+- **`cache.ts`**:
   - `applyVote(recommendation, voted)` changes the count by one and never goes below zero.
   - `rollbackVote(recommendation, previous)` and `setVoteState(recommendation, serverState)` put a known state back.
   - `applySave` sets the saved flag.
@@ -228,6 +232,29 @@ Swift comparison: `schema.d.ts` plays the role of `Codable` models generated fro
   - How a maintainer reviews hidden recommendations with `sqlite3`, since moderation tooling is out of scope.
 - `LICENSE` (MIT) already existed. I filled in `api/README.md` and the description in `api/pyproject.toml`.
 
+## Testing process
+
+`docs/requirements.md` asks for strict TDD on services, schemas, `cache.ts` and form validation, and test first on routers. **That was not followed.** Code and tests were written together and run until green, so no test was ever seen failing first. That is a deviation from the agreed process, not a judgment call.
+
+The cost is that a test can pass for the wrong reason, and coverage cannot tell: it shows which lines ran, not whether an assertion would notice a broken rule. To recover the evidence the red step would have given, every rule was broken on purpose, one at a time (mutation testing, done by hand with a script, no new dependency). 76 mutants were run. 10 survived, which means 10 behaviours had no test that noticed them breaking:
+
+| Survivor | What it showed |
+|---|---|
+| Unvote and unsave without the user filter | Removing your vote or save could delete everyone's, and no test noticed |
+| Report count without the recommendation filter | Reports on other recommendations could count toward hiding |
+| `voted_by_me` and `saved_by_me` ignoring the viewer | Another user's vote showed as yours |
+| Cursor sort check removed | `test_cursor_from_other_sort_raises` passed for the wrong reason: the cursor failed to parse before the sort check ran |
+| `applySave` identity | An unchanged save still created a new object |
+| `textCounter` past the maximum | 1001 characters showed as valid |
+| `toCreatePayload` for an artist with a leftover title | The title was sent |
+| `useSave` rollback removed | A failed save stayed checked |
+
+Each got a test that fails against the mutant (red) and passes on the real code (green). All 76 mutants now fail the suite.
+
+The same audit found a gap in the checks: Pylance in `standard` mode flagged 10 type errors (`query_expression()` fields typed as never `None`, the SQLAlchemy 2.1 `Select` generic, `rowcount` on an untyped result, a possibly unbound variable in a test). Neither ruff nor CI runs a type checker on the API, so they went unnoticed. They are fixed in `39667e3`; the invite claim now uses `UPDATE ... RETURNING` instead of `rowcount`.
+
+From slice 7 on, the listed layers are written test first: the failing test is run and seen failing before any code.
+
 ## Decisions taken during implementation
 
 Revisit any of these if you disagree.
@@ -244,8 +271,7 @@ Revisit any of these if you disagree.
 
 ## Things on your machine
 
-- **Watchman is broken:** it was built against `libfmt.11`, and Homebrew has since upgraded fmt. Jest and Metro crash on start. Fix it with `brew reinstall watchman`, or run `npm test -- --no-watchman` meanwhile.
-- **The npm cache has root-owned files** in `~/.npm/_cacache` (probably from an old `sudo npm`), so installs fail with `EACCES`. I installed with a temporary cache instead. Fix it with `sudo chown -R $(whoami) ~/.npm`.
+- **Watchman** was broken (built against an older `libfmt`) and the **npm cache** had root-owned files. Both are fixed: watchman was reinstalled and the npm cache permissions corrected.
 - **No iOS simulator runtime is installed.** I couldn't run the app visually: everything is verified by Jest, typecheck, lint and an `expo export` of the iOS bundle. Install a runtime in Xcode → Settings → Components, then run `npm run ios` and walk through the screens. That's the first thing to do, because layout and navigation glitches don't show up in Jest.
 - **`app/.claude/settings.json`** was created by the Expo template to turn on Expo's Claude plugin. I left it untracked; commit it or delete it.
 
@@ -259,7 +285,7 @@ uv run python -m app.cli create-invite
 uv run fastapi dev main.py
 
 cd app
-npm test -- --no-watchman      # until watchman is fixed
+npm test
 npm run typecheck && npm run lint && npm run format:check
 npm run generate:api           # after any API change
 npm run ios
